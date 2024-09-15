@@ -1,44 +1,46 @@
-using UnityEngine;
-using RoR2;
-using R2API;
+using System.Collections;
 using System.Collections.Generic;
-using RoR2.Projectile;
-using UnityEngine.AddressableAssets;
-using UnityEngine.EventSystems;
-using System.Linq;
+using R2API;
+using RoR2;
+using RoR2.ContentManagement;
+using UnityEngine;
 using UnityEngine.Networking;
 
 namespace RandomlyGeneratedItems
 {
     public class Buffs
     {
-        public static void Awake()
+        public static List<BuffDef> RegisteredBuffs = new();
+
+        public static IEnumerator RegisterBuffs(ContentPack contentPack)
         {
-            NoDecay.Create();
+            NoMaxBarrier.Register();
+
+            contentPack.buffDefs.Add(RegisteredBuffs.ToArray());
+
+            yield break;
         }
 
-        public class NoDecay
+        public class NoMaxBarrier
         {
-            public static BuffDef buffDef;
+            public static BuffDef BuffDef;
 
-            public static void Create()
+            public static void Register()
             {
-                buffDef = ScriptableObject.CreateInstance<BuffDef>();
-                buffDef.name = "NoDecay";
-                buffDef.isHidden = true;
-                buffDef.isDebuff = false;
+                BuffDef = ScriptableObject.CreateInstance<BuffDef>();
+                BuffDef.name = "BUFF_NO_DECAY";
+                BuffDef.isHidden = true;
+                BuffDef.isDebuff = false;
 
-                ContentAddition.AddBuffDef(buffDef);
+                RegisteredBuffs.Add(BuffDef);
 
-                RecalculateStatsAPI.GetStatCoefficients += (body, args) =>
+                RecalculateStatsAPI.GetStatCoefficients += (body, _) =>
                 {
-                    if (NetworkServer.active)
-                    {
-                        if (body.HasBuff(buffDef))
-                        {
-                            body.maxBarrier = int.MaxValue;
-                        }
-                    }
+                    if (!NetworkServer.active || !body.HasBuff(BuffDef)) return;
+                    
+                    // Extremely large number, but reduced from float.MaxValue a bit to try to prevent overflow if additional modifiers are applied after this
+                    body.maxBarrier = float.MaxValue / 16;
+                    body.barrierDecayRate = (body.maxHealth + body.maxShield) / 30;
                 };
             }
         }

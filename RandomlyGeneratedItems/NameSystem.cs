@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace RandomlyGeneratedItems
 {
     public static class NameSystem
     {
-        public static List<string> itemNamePrefix = new()
+        public static List<string> ItemNamePrefix = new()
         {
             "Armor-Piercing", "Backup", "Bison", "Bundle of", "Bustling", "Cautious", "Delicate", "Energy", "Focus", "Lens-Maker's",
             "Monster", "Oddly-shaped", "Paul's Goat", "Personal", "Power", "Repulsion", "Roll of", "Rusted", "Soldier's", "Sticky",
@@ -19,14 +19,14 @@ namespace RandomlyGeneratedItems
             "Focused", "Gesture of the", "Hooks of", "Light Flux", "Mercurial", "Shaped", "Stone Flux", "Strides of", "Visions of", "Benthic",
             "Encrusted", "Lost Seer's", "Lysate", "Newly Hatched", "Plasma", "Pluripotent", "Safer", "Singularity", "Tenta", "Voidsent", "Weeping",
             "Blast", "Disposable", "Eccentric", "Executive", "Foreign", "Fuel", "Gnarled", "Gorag's", "Jade", "Milky", "Primordial", "Remote", "Royal",
-            "Super Massive", "Crowdfunding", "Tropy Hunter's", "Volcanic", "Glowing", "Helfire", "Spinel", "Her", "His", "Ifrit's", "Suspicious",
+            "Super Massive", "Crowdfunding", "Trophy Hunter's", "Volcanic", "Glowing", "Helfire", "Spinel", "Her", "His", "Ifrit's", "Suspicious",
 
             "The", "The", "The", "The", "The", "The", "The", "The", "The", "The",
 
             "Artificial", "Liquated", "Crystallized", "Wild", "Poison", "Primitive", "Stealthy", "Blazing", "Nacreous", "Invisible",
 
             "HIFU's", "RandomlyAwesome's","Harb's", "iDeath's", "Twiner's", "Jace's", "Groove's", "Noop's", "Dotflare's", "Atlantean", "Gav's", "Mystic's",
-            "Nebby's", "MonsterSkinMan's", "Pseudopulse's",
+            "Nebby's", "MonsterSkinMan's", "Pseudopulse's", "SuperKael's",
 
             "Scarlet", "Crazy", "Erised", "Froggin'", "Pale", "Black", "Heavy", "Rainbow", "Stranger", "Blood", "Malleable", "Abandoned", "Antler's",
             "Another", "Orange", "Mint", "Snake", "Closer", "Velvet", "Scorpio", "Gold", "Concealing", "Impossible", "Luminary", "Dead", "Ordinary",
@@ -55,10 +55,10 @@ namespace RandomlyGeneratedItems
             "Sighted", "Rapid","Hasty", "Intimidating", "Deadly", "Staunch", "Awful", "Lethargic", "Awkward", "Powerful", "Frenzying", "Unreal", "Mystic", "Adept",
             "Masterful", "Inept", "Ignorant", "Deranged", "Intense", "Taboo", "Celestial", "Furious", "Manic", "Mythical",
 
-            "Femboy" // for the funny
+            // "Femboy" // for the funny // a bit too funny :(
         };
 
-        public static List<string> itemName = new()
+        public static List<string> ItemName = new()
         {
             "Insomnia", "Letter", "Experiment", "Jetpack", "Light", "Materials", "Buttersnips", "Feelings", "Zyglrox", "Racecar", "Passenger", "Groove",
             "Captain", "Eureka", "Muramasa", "Blast", "Facepalm", "Mute", "Ji", "Luck", "Ragnarok", "Diamond", "Bullfish", "Masamune", "Overture", "Ground",
@@ -105,7 +105,7 @@ namespace RandomlyGeneratedItems
             "Load" // for the funny
         };
 
-        public static List<string> logDesc = new()
+        public static List<string> LogDesc = new()
         {
             // convert to single line
             // find ([^ ]*)( |$)
@@ -130,21 +130,18 @@ namespace RandomlyGeneratedItems
             // extra/icarus
         };
 
-        public static void populate()
+        public static void Populate()
         {
-            if (File.Exists(System.Reflection.Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt")))
+            string assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (!string.IsNullOrEmpty(assemblyLocation) && File.Exists(Path.Combine(assemblyLocation, "lore.txt")))
             {
-                string fullText = File.OpenText(System.Reflection.Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt")).ReadToEnd();
-                fullText.Replace("\n", "");
-                string[] newText = fullText.Split(" ".ToCharArray()[0]);
-                foreach (string str in newText)
-                {
-                    logDesc.Add(str);
-                }
+                string fullText = File.OpenText(Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt")).ReadToEnd();
+                string[] newText = fullText.Replace("\n", "").Split(" ".ToCharArray()[0]);
+                LogDesc.AddRange(newText);
             }
             else
             {
-                Main.RGILogger.LogError("Could not find lore text file at path: " + System.Reflection.Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt"));
+                Main.RgiLogger.LogWarning("Could not find lore text file at path: " + Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt"));
             }
         }
     }
