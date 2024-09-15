@@ -1,6 +1,6 @@
 # Randomly Generated Items Rewrite
 
-This is a rewrite of the Randomly Generated Items mod by HIFU and Pseudopulse. Made with permission.
+This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/package/HIFUPulse/RandomlyGeneratedItems/) mod by HIFU and Pseudopulse. Made with permission.
 
 ## Changelog
 
