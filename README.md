@@ -4,6 +4,10 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.0.1**
+
+* Removed Noop (Don't worry about it)
+
 **2.0.0**
 
 * Release of Randomly Generated Items Rewrite.
