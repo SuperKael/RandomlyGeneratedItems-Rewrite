@@ -25,7 +25,7 @@ namespace RandomlyGeneratedItems
 
             "Artificial", "Liquated", "Crystallized", "Wild", "Poison", "Primitive", "Stealthy", "Blazing", "Nacreous", "Invisible",
 
-            "HIFU's", "RandomlyAwesome's","Harb's", "iDeath's", "Twiner's", "Jace's", "Groove's", "Noop's", "Dotflare's", "Atlantean", "Gav's", "Mystic's",
+            "HIFU's", "RandomlyAwesome's","Harb's", "iDeath's", "Twiner's", "Jace's", "Groove's", "Dotflare's", "Atlantean", "Gav's", "Mystic's",
             "Nebby's", "MonsterSkinMan's", "Pseudopulse's", "SuperKael's",
 
             "Scarlet", "Crazy", "Erised", "Froggin'", "Pale", "Black", "Heavy", "Rainbow", "Stranger", "Blood", "Malleable", "Abandoned", "Antler's",
