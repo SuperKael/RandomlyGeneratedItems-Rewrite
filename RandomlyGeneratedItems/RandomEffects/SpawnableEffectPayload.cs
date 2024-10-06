@@ -18,24 +18,25 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public readonly string Name;
         public readonly float StrengthModifier;
+        public readonly float CooldownModifier;
         public readonly ProcType ProcType;
         public readonly PayloadSpawnDelegate SpawnDelegate;
         public readonly AbstractEffects.DescriptionDelegate DescriptionDelegate;
         public readonly int MinimumGrade;
-        
+
         public static IEnumerator Initialize()
         {
-            RegisterProjectilePrefab("RandomMissile", 1f, ProcType.Missile, _ => "<style=cIsDamage>Missile</style>", "RoR2/Base/Common/MissileProjectile.prefab", 2);
-            RegisterProjectilePrefab("RandomClayPot", 2f, ProcType.Missile, _ => "<style=cIsDamage>Clay Pot</style>", "RoR2/Base/ClayBoss/ClayPotProjectile.prefab")
+            RegisterProjectilePrefab("RandomMissile", 1f, 1f, ProcType.Missile, _ => "<style=cIsDamage>Missile</style>", "RoR2/Base/Common/MissileProjectile.prefab", 2);
+            RegisterProjectilePrefab("RandomClayPot", 2f, 1f, ProcType.Missile, _ => "<style=cIsDamage>Clay Pot</style>", "RoR2/Base/ClayBoss/ClayPotProjectile.prefab")
                 .prefab.GetComponent<ProjectileImpactExplosion>().blastRadius = 9f;
-            RegisterProjectilePrefab("RandomVoidSpike", 1.5f, ProcType.Missile, _ => "<style=cIsVoid>Void Spike</style>", "RoR2/Base/ImpBoss/ImpVoidspikeProjectile.prefab");
-            RegisterProjectilePrefab("RandomSaw", 1f, ProcType.Missile, _ => "<style=cDeath>Sawblade</style>", "RoR2/Base/Saw/Sawmerang.prefab", 2)
+            RegisterProjectilePrefab("RandomVoidSpike", 1.5f, 1f, ProcType.Missile, _ => "<style=cIsVoid>Void Spike</style>", "RoR2/Base/ImpBoss/ImpVoidspikeProjectile.prefab");
+            RegisterProjectilePrefab("RandomSaw", 1f, 1f, ProcType.Missile, _ => "<style=cDeath>Sawblade</style>", "RoR2/Base/Saw/Sawmerang.prefab", 2)
                 .prefab.GetComponent<ProjectileDotZone>().resetFrequency = 0;
-            RegisterProjectilePrefab("RandomNade", 2f, ProcType.Missile, _ => "<style=cIsDamage>Grenade</style>", "RoR2/Base/Commando/CommandoGrenadeProjectile.prefab");
-            RegisterProjectilePrefab("RandomFireball", 1.5f, ProcType.Missile, _ => "<style=cIsDamage>Fireball</style>", "RoR2/Base/LemurianBruiser/LemurianBigFireball.prefab");
+            RegisterProjectilePrefab("RandomNade", 2f, 1f, ProcType.Missile, _ => "<style=cIsDamage>Grenade</style>", "RoR2/Base/Commando/CommandoGrenadeProjectile.prefab");
+            RegisterProjectilePrefab("RandomFireball", 1.5f, 1f, ProcType.Missile, _ => "<style=cIsDamage>Fireball</style>", "RoR2/Base/LemurianBruiser/LemurianBigFireball.prefab");
 
             GameObject randomExplosionPrefab = Addressables.LoadAssetAsync<GameObject>("RoR2/Base/Common/VFX/OmniExplosionVFXQuick.prefab").WaitForCompletion().InstantiateClone("RandomWispExplosion");
-            RegisterPayloadSpawnDelegate("RandomExplosion", 1f, ProcType.Behemoth,
+            RegisterPayloadSpawnDelegate("RandomExplosion", 1f, 1f, ProcType.Behemoth,
                 (character, effects, origin, direction, stackCount, procCoefficient, procChainMask, _) =>
                 {
                     float radius = (1.5f + 2.5f * stackCount) * procCoefficient;
@@ -48,7 +49,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                     BlastAttack blastAttack = new()
                     {
                         position = origin,
-                        baseDamage = effects.GetTriggeredStrength(stackCount, procCoefficient),
+                        baseDamage = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
                         baseForce = 0f,
                         radius = radius,
                         attacker = character.gameObject,
@@ -66,7 +67,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             GameObject randomWispExplosionPrefab = Addressables.LoadAssetAsync<GameObject>("RoR2/Base/ExplodeOnDeath/WilloWispDelay.prefab").WaitForCompletion().InstantiateClone("RandomWispExplosion");
             randomWispExplosionPrefab.AddComponent<EnhancedDelayBlast>().TransferDataFromDelayBlast();
-            RegisterPayloadSpawnDelegate("RandomWispExplosion", 1f, ProcType.Behemoth,
+            RegisterPayloadSpawnDelegate("RandomWispExplosion", 1f, 1f, ProcType.Behemoth,
                 (character, effects, origin, _, stackCount, procCoefficient, procChainMask, _) =>
                 {
                     GameObject explosionObject = Object.Instantiate(randomWispExplosionPrefab, origin, Quaternion.identity);
@@ -74,7 +75,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                     delayBlast.BlastAttack = new BlastAttack()
                     {
                         position = origin,
-                        baseDamage = effects.GetTriggeredStrength(stackCount, procCoefficient),
+                        baseDamage = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
                         baseForce = 2000f,
                         bonusForce = Vector3.up * 1000f,
                         radius = 12f + 2.4f * (stackCount - 1f),
@@ -94,7 +95,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             GameObject randomVoidWispExplosionPrefab = Addressables.LoadAssetAsync<GameObject>("RoR2/DLC1/ExplodeOnDeathVoid/ExplodeOnDeathVoidExplosion.prefab").WaitForCompletion().InstantiateClone("RandomVoidWispExplosion");
             randomVoidWispExplosionPrefab.AddComponent<EnhancedDelayBlast>().TransferDataFromDelayBlast();
-            RegisterPayloadSpawnDelegate("RandomVoidWispExplosion", 1f, ProcType.Behemoth,
+            RegisterPayloadSpawnDelegate("RandomVoidWispExplosion", 1f, 1f, ProcType.Behemoth,
                 (character, effects, origin, _, stackCount, procCoefficient, procChainMask, _) =>
                 {
                     GameObject explosionObject = Object.Instantiate(randomVoidWispExplosionPrefab, origin, Quaternion.identity);
@@ -102,7 +103,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                     delayBlast.BlastAttack = new BlastAttack()
                     {
                         position = origin,
-                        baseDamage = effects.GetTriggeredStrength(stackCount, procCoefficient),
+                        baseDamage = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
                         baseForce = 1000f,
                         bonusForce = Vector3.up * 1000f,
                         radius = 12f + 2.4f * (stackCount - 1f),
@@ -120,16 +121,16 @@ namespace RandomlyGeneratedItems.RandomEffects
                     NetworkServer.Spawn(explosionObject);
                 }, _ => "<style=cIsVoid>Void Wisp Explosion</style>", 2);
 
-            RegisterPayloadSpawnDelegate("RandomChainLightning", 0.5f, ProcType.ChainLightning,
+            RegisterPayloadSpawnDelegate("RandomChainLightning", 0.5f, 1f, ProcType.ChainLightning,
                 (character, effects, origin, _, stackCount, procCoefficient, procChainMask, args) =>
                 {
                     List<HealthComponent> bouncedObjects = new();
-                    if (args["damageReport"] is DamageReport damageReport) bouncedObjects.Add(damageReport.victim);
+                    if (args.TryGetValue("damageReport", out object damageReportObj) && damageReportObj is DamageReport damageReport) bouncedObjects.Add(damageReport.victim);
 
                     LightningOrb lightningOrb2 = new()
                     {
                         origin = origin,
-                        damageValue = effects.GetTriggeredStrength(stackCount, procCoefficient),
+                        damageValue = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
                         isCrit = Util.CheckRoll(character.crit, character.master),
                         bouncesRemaining = 2 * stackCount,
                         teamIndex = character.teamComponent.teamIndex,
@@ -152,43 +153,44 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static (SpawnableEffectPayload spawnableEffectPayload, GameObject prefab) RegisterProjectilePrefab(string name, float strengthModifier, ProcType procType, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
+        public static (SpawnableEffectPayload spawnableEffectPayload, GameObject prefab) RegisterProjectilePrefab(string name, float strengthModifier, float cooldownModifier, ProcType procType, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
         {
             GameObject prefab = Addressables.LoadAssetAsync<GameObject>(key).WaitForCompletion().InstantiateClone(name);
-            return (RegisterPayloadSpawnDelegate(name, strengthModifier, procType,
+            return (RegisterPayloadSpawnDelegate(name, strengthModifier, cooldownModifier, procType,
                     (character, effects, origin, direction, stackCount, procCoefficient, procChainMask, _) =>
-                {
-                    FireProjectileInfo proj = new()
                     {
-                        damage = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
-                        owner = character.gameObject,
-                        speedOverride = 100 * direction.magnitude,
-                        fuseOverride = 2,
-                        rotation = Util.QuaternionSafeLookRotation(direction),
-                        position = origin,
-                        damageColorIndex = DamageColorIndex.Item,
-                        projectilePrefab = prefab,
-                        procChainMask = procChainMask
-                    };
+                        FireProjectileInfo proj = new()
+                        {
+                            damage = character.damage * effects.GetTriggeredStrength(stackCount, procCoefficient),
+                            owner = character.gameObject,
+                            speedOverride = 100 * direction.magnitude,
+                            fuseOverride = 2,
+                            rotation = Util.QuaternionSafeLookRotation(direction),
+                            position = origin,
+                            damageColorIndex = DamageColorIndex.Item,
+                            projectilePrefab = prefab,
+                            procChainMask = procChainMask
+                        };
 
-                    ProjectileManager.instance.FireProjectile(proj);
-                }, descriptionDelegate, minimumGrade), prefab);
+                        ProjectileManager.instance.FireProjectile(proj);
+                    }, descriptionDelegate, minimumGrade), prefab);
         }
 
-        public static SpawnableEffectPayload RegisterPayloadSpawnDelegate(string name, float strengthModifier, ProcType procType,
+        public static SpawnableEffectPayload RegisterPayloadSpawnDelegate(string name, float strengthModifier, float cooldownModifier, ProcType procType,
             PayloadSpawnDelegate spawnDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate,
             int minimumGrade = 0)
         {
-            SpawnableEffectPayload spawnableEffectPayload = new(name, strengthModifier, procType, spawnDelegate
+            SpawnableEffectPayload spawnableEffectPayload = new(name, strengthModifier, cooldownModifier, procType, spawnDelegate
                 , descriptionDelegate, minimumGrade);
             RegisteredEffectPrefabs[name] = spawnableEffectPayload;
             return spawnableEffectPayload;
         }
 
-        public SpawnableEffectPayload(string name, float strengthModifier, ProcType procType, PayloadSpawnDelegate spawnDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade)
+        public SpawnableEffectPayload(string name, float strengthModifier, float cooldownModifier, ProcType procType, PayloadSpawnDelegate spawnDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade)
         {
             Name = name;
             StrengthModifier = strengthModifier;
+            CooldownModifier = cooldownModifier;
             ProcType = procType;
             SpawnDelegate = spawnDelegate;
             DescriptionDelegate = descriptionDelegate;
@@ -201,7 +203,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             SpawnDelegate(character, effects, origin, direction, stackCount, procCoefficient, procChainMask, args);
         }
 
-        public delegate void PayloadSpawnDelegate(CharacterBody character, AbstractEffects effects, 
+        public delegate void PayloadSpawnDelegate(CharacterBody character, AbstractEffects effects,
             Vector3 origin, Vector3 direction, int stackCount, float procCoefficient, ProcChainMask procChainMask, Dictionary<string, object> args);
     }
 }

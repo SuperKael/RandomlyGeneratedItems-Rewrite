@@ -29,7 +29,8 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             RegisterPassiveEffect("SpeedBoost", 10f, new[] { new Color(0.75f, 0.75f, 1.0f) }, new[] { ItemTag.Utility }, effect => (args, stacks, _) =>
                 args.moveSpeedMultAdd += effect.GetPassiveStrength(stacks), effect =>
-                $"Gain {effect.FormatPassiveStrengthPercentage("IsUtility")} <style=cIsUtility>movement speed</style>.");
+                $"Gain {effect.FormatPassiveStrengthPercentage("IsUtility")} <style=cIsUtility>movement speed</style>.",
+                "NotMoving");
 
             RegisterPassiveEffect("HealthBoost", 5f, new[] { new Color(0.5f, 1.0f, 0.5f) }, new[] { ItemTag.Healing }, effect => (args, stacks, _) =>
                 args.healthMultAdd += effect.GetPassiveStrength(stacks), effect =>
@@ -46,7 +47,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 "HasBarrier", "AtFullHP");
 
             RegisterPassiveEffect("ArmorBoost", 10f, new[] { new Color(0.25f, 1.0f, 0.25f) }, new[] { ItemTag.Healing }, effect => (args, stacks, _) =>
-                args.armorAdd += effect.GetPassiveStrength(stacks), effect =>
+                args.armorAdd += effect.GetPassiveStrength(stacks) * 100, effect =>
                 $"Gain <style=cIsHealing>{effect.PassiveStrength:0.#}</style> <style=cStack>(+{effect.PassiveStrength * effect.PassiveStackScaling:0.#} per stack)</style> <style=cIsHealing>armor</style>.");
 
             RegisterPassiveEffect("RegenBoost", 10f, new[] { new Color(0.75f, 1.0f, 0.75f) }, new[] { ItemTag.Healing }, effect => (args, stacks, _) =>

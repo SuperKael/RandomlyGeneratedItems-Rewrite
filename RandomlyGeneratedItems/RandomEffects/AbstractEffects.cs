@@ -30,7 +30,7 @@ namespace RandomlyGeneratedItems.RandomEffects
         public Dictionary<string, string> ExtraText = new();
 
         public readonly string Name;
-        public readonly Sprite Sprite;
+        public abstract Sprite Sprite { get; }
 
         public List<EffectCondition.ConditionCallback> Conditions = new();
         public event PassiveEffect.PassiveEffectCallback OnPassiveEffect;
@@ -41,6 +41,7 @@ namespace RandomlyGeneratedItems.RandomEffects
         public static IEnumerator Initialize(ContentPack contentPack)
         {
             yield return SpawnableEffectPayload.Initialize();
+            yield return SpawnableInteractable.Initialize();
             yield return EffectStatus.Initialize();
             yield return EffectCondition.Initialize();
             yield return PassiveEffect.Initialize();
@@ -55,7 +56,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public static void ApplyPassiveEffects(CharacterBody character, RecalculateStatsAPI.StatHookEventArgs args)
         {
-            if (!character || !character.inventory || !NetworkServer.active) return;
+            if (!character || !character.inventory) return;
 
             foreach (ItemIndex index in character.inventory.itemAcquisitionOrder)
             {
@@ -117,7 +118,7 @@ namespace RandomlyGeneratedItems.RandomEffects
         public static void TriggerEffects(string name, CharacterBody character, float procCoefficient,
             ProcChainMask? procChainMask, Dictionary<string, object> args)
         {
-            if (!character || !character.inventory || !NetworkServer.active) return;
+            if (!character || !character.inventory) return;
 
             args ??= new Dictionary<string, object>();
             ProcChainMask newMask = new();
@@ -129,7 +130,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
                 int stackCount = itemEffects.GetStackCount(character);
                 float chance = itemEffects.GetChance(stackCount, procCoefficient);
-                if (stackCount <= 0 || !itemEffects.ConditionsMet(character) || chance < 100 && !Util.CheckRoll(chance, character.master)) continue;
+                if (!args.ContainsKey("forceTrigger") && (stackCount <= 0 || !itemEffects.ConditionsMet(character) || chance < 100 && !Util.CheckRoll(chance, character.master))) continue;
 
                 if (procChainMask.HasValue && itemEffects.ProcType.HasValue)
                 {
@@ -169,10 +170,9 @@ namespace RandomlyGeneratedItems.RandomEffects
             }
         }
 
-        protected AbstractEffects(string name, Sprite sprite, Xoroshiro128Plus rng)
+        protected AbstractEffects(string name, Xoroshiro128Plus rng)
         {
             Name = name;
-            Sprite = sprite;
             Rng = rng;
         }
 
@@ -183,7 +183,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public bool ConditionsMet(CharacterBody body)
         {
-            return Conditions.All(condition => condition(body));
+            return body.HasBuff(Buffs.BypassEffectConditions.BuffDef) || Conditions.All(condition => condition(body));
         }
 
         public abstract int GetStackCount(CharacterBody body);
@@ -218,7 +218,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             return $"<style=c{textStyle}>{TriggeredStrength:0.##}%</style>" + (TriggeredStackScaling > 0 ? $" <style=cStack>(+{TriggeredStrength * TriggeredStackScaling:0.##}% per stack)</style>" : "");
         }
 
-        public abstract int Generate();
+        public abstract SpriteShape Generate();
 
         public delegate string DescriptionDelegate(AbstractEffects effects);
     }

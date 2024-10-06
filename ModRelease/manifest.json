@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "RandomlyGeneratedItemsRewrite",
-  "version_number": "2.0.1",
+  "version_number": "2.0.4",
   "website_url": "https://github.com/SuperKael/RandomlyGeneratedItems-Rewrite",
   "description": "Adds a configurable amount of randomly generated items with randomly generated names, icons and models. Can be networked by setting seed to be the same across everyone. Probably really unbalanced but funny! Fork by SuperKael. Made with permission.",
   "dependencies": [

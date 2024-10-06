@@ -4,6 +4,24 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.0.4**
+
+* Add a handful of special effects that only appear on equipment, never on normal items.
+* Fix the Chain Lightning effect
+* Fix the "Upon getting healed, receive healing..." effect combination crashing the game.
+* Fix barrier nerf from 2.0.3 not actually working
+
+**2.0.3**
+
+* Fix armor items only giving 1% of their listed effect
+* Blacklist the combination of "While not moving..." and "...gain movement speed"
+* Attempt to nerf barrier by making it decay increasingly fast when above the cap
+
+**2.0.2**
+
+* Fixed many item effects, including most passive item effects, not working for non-host players in multiplayer
+* Fixed many triggered explosions and projectiles dealing far less damage than they should
+
 **2.0.1**
 
 * Removed Noop (Don't worry about it)

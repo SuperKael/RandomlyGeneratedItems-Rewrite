@@ -15,6 +15,7 @@ namespace RandomlyGeneratedItems
         public static IEnumerator RegisterBuffs(ContentPack contentPack)
         {
             NoMaxBarrier.Register();
+            BypassEffectConditions.Register();
 
             contentPack.buffDefs.Add(RegisteredBuffs.ToArray());
 
@@ -36,12 +37,33 @@ namespace RandomlyGeneratedItems
 
                 RecalculateStatsAPI.GetStatCoefficients += (body, _) =>
                 {
-                    if (!NetworkServer.active || !body.HasBuff(BuffDef)) return;
+                    if (!body.HasBuff(BuffDef)) return;
                     
                     // Extremely large number, but reduced from float.MaxValue a bit to try to prevent overflow if additional modifiers are applied after this
                     body.maxBarrier = float.MaxValue / 16;
-                    body.barrierDecayRate = (body.maxHealth + body.maxShield) / 30;
                 };
+
+                On.RoR2.CharacterBody.RecalculateStats += (orig, self) =>
+                {
+                    orig(self);
+                    if (self.healthComponent.barrier <= self.maxHealth + self.maxShield) return;
+                    self.barrierDecayRate = self.healthComponent.barrier / 10;
+                };
+            }
+        }
+
+        public class BypassEffectConditions
+        {
+            public static BuffDef BuffDef;
+
+            public static void Register()
+            {
+                BuffDef = ScriptableObject.CreateInstance<BuffDef>();
+                BuffDef.name = "BUFF_BYPASS_CONDITIONS";
+                BuffDef.isHidden = true;
+                BuffDef.isDebuff = false;
+
+                RegisteredBuffs.Add(BuffDef);
             }
         }
     }

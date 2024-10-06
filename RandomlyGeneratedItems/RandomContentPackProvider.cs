@@ -31,11 +31,13 @@ namespace RandomlyGeneratedItems
 
         public static readonly Color EquipmentColor = new(0.89f, 0.57f, 0.19f);
 
-        public static readonly List<Tuple<Func<int, int, bool>, Func<int, int, bool>>> ShapeDelegates = new()
+        public static readonly Dictionary<SpriteShape, Tuple<Func<int, int, bool>, Func<int, int, bool>>> ShapeDelegates = new()
         {
-            Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => x is > 128 and < 384 && y is > 128 and < 384, (x, y) => x is > 112 and < 400 && y is > 112 and < 400),
-            Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Abs(x - 256) + Mathf.Abs(y - 256) < 192, (x, y) => Mathf.Abs(x - 256) + Mathf.Abs(y - 256) < 208),
-            Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Pow(x - 256, 2) + Mathf.Pow(y - 256, 2) < 192 * 192, (x, y) => Mathf.Pow(x - 256, 2) + Mathf.Pow(y - 256, 2) < 208 * 208)
+            [SpriteShape.Square]  = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => x is > 128 and < 384 && y is > 128 and < 384, (x, y) => x is > 112 and < 400 && y is > 112 and < 400),
+            [SpriteShape.Rhombus] = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Abs(x - 256) + Mathf.Abs(y - 256) < 192, (x, y) => Mathf.Abs(x - 256) + Mathf.Abs(y - 256) < 208),
+            [SpriteShape.Circle]  = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Pow(x - 256, 2) + Mathf.Pow(y - 256, 2) < 192 * 192, (x, y) => Mathf.Pow(x - 256, 2) + Mathf.Pow(y - 256, 2) < 208 * 208),
+            [SpriteShape.Diamond] = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Abs(x - 256) * 2 + Mathf.Abs(y - 256) < 192, (x, y) => Mathf.Abs(x - 256) * 2 + Mathf.Abs(y - 256) < 208),
+            [SpriteShape.Cylinder] = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Abs(y - 256) < 96 ? Mathf.Abs(x - 256) < 96 : Mathf.Pow(x - 256, 2) + Mathf.Pow(Mathf.Abs(y - 256) - 96, 2) < 96 * 96, (x, y) => Mathf.Abs(y - 256) < 96 ? Mathf.Abs(x - 256) < 112 : Mathf.Pow(x - 256, 2) + Mathf.Pow(Mathf.Abs(y - 256) - 96, 2) < 112 * 112)
         };
 
         public static Shader HgStandard;
@@ -67,8 +69,8 @@ namespace RandomlyGeneratedItems
             RgiExpansion.name = "EXPANSION_RGI";
             RgiExpansion.nameToken = RgiExpansion.name + "_NAME";
             RgiExpansion.descriptionToken = RgiExpansion.name + "_DESC";
-            RgiExpansion.iconSprite = GenerateIcon(Color.green, new[] { Color.green }, 1);
-            RgiExpansion.disabledIconSprite = GenerateIcon(Color.gray, new[] { Color.gray }, 1);
+            RgiExpansion.iconSprite = GenerateIcon(Color.green, new[] { Color.green }, SpriteShape.Rhombus);
+            RgiExpansion.disabledIconSprite = GenerateIcon(Color.gray, new[] { Color.gray }, SpriteShape.Rhombus);
 
             LanguageAPI.Add(RgiExpansion.nameToken, "Randomly Generated Items");
             LanguageAPI.Add(RgiExpansion.descriptionToken, "Enables randomly-generated items. Note that you must fully restart the game in order to generate a new batch of items.");
@@ -80,8 +82,8 @@ namespace RandomlyGeneratedItems
             ArtifactFrivolity.nameToken = ArtifactFrivolity.cachedName + "_NAME";
             ArtifactFrivolity.descriptionToken = ArtifactFrivolity.cachedName + "_DESC";
             ArtifactFrivolity.requiredExpansion = RgiExpansion;
-            ArtifactFrivolity.smallIconSelectedSprite = GenerateIcon(new Color(0.9f, 0.75f, 0.9f), new[] { new Color(0.9f, 0.75f, 0.9f) });
-            ArtifactFrivolity.smallIconDeselectedSprite = GenerateIcon(Color.gray, new[] { Color.gray });
+            ArtifactFrivolity.smallIconSelectedSprite = GenerateIcon(new Color(0.9f, 0.75f, 0.9f), new[] { new Color(0.9f, 0.75f, 0.9f) }, SpriteShape.Square);
+            ArtifactFrivolity.smallIconDeselectedSprite = GenerateIcon(Color.gray, new[] { Color.gray }, SpriteShape.Square);
 
             LanguageAPI.Add(ArtifactFrivolity.nameToken, "Artifact of Frivolity");
             LanguageAPI.Add(ArtifactFrivolity.descriptionToken, "Disables all items except for randomly-generated ones.");
@@ -102,7 +104,7 @@ namespace RandomlyGeneratedItems
                 "The number of void uncommon items to generate.").Value;
             ItemTypeCounts[ItemTier.VoidTier3] = Main.RgiConfig.Bind("Configuration", "Void Legendary Items", 3,
                 "The number of void legendary items to generate.").Value;
-            EquipmentCount = Main.RgiConfig.Bind("Configuration", "Equipment Items", 10,
+            EquipmentCount = Main.RgiConfig.Bind("Configuration", "Equipment Items", 20,
                 "The number of equipment items to generate.").Value;
             
             VoidsConvertNormals = Main.RgiConfig.Bind("Configuration", "Void Items Convert Normal Items", true, "Whether generated void items should convert certain generated normal items. If true, at least as many normal items as void items of each tier will always be generated.").Value;
@@ -224,7 +226,7 @@ namespace RandomlyGeneratedItems
             On.RoR2.CharacterBody.Update += (orig, self) =>
             {
                 orig(self);
-                if (!self || !NetworkServer.active || !self.isPlayerControlled ||
+                if (!self || !self.isPlayerControlled ||
                     self.GetNotMoving() == wasNotMoving) return;
                 wasNotMoving = !wasNotMoving;
                 self.RecalculateStats();
@@ -290,7 +292,7 @@ namespace RandomlyGeneratedItems
             On.RoR2.EquipmentSlot.PerformEquipmentAction += (orig, self, equipmentDef) =>
             {
                 bool success = GeneratedEquipmentDefs.Contains(equipmentDef) || orig(self, equipmentDef);
-                if (!success) return false;
+                if (!success || !NetworkServer.active) return false;
                 AbstractEffects.TriggerEffects("Equipment", self.characterBody, new Dictionary<string, object>
                 {
                     ["equipmentDef"] = equipmentDef
@@ -341,7 +343,7 @@ namespace RandomlyGeneratedItems
             itemDef.AutoPopulateTokens();
 
             ItemEffects effects = new(itemDef, Main.Rng);
-            int spriteShape = effects.Generate();
+            SpriteShape spriteShape = effects.Generate();
 
             itemDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
             itemDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
@@ -387,7 +389,7 @@ namespace RandomlyGeneratedItems
             equipmentDef.canDrop = true;
 
             EquipmentEffects effects = new(equipmentDef, Main.Rng);
-            int spriteShape = effects.Generate();
+            SpriteShape spriteShape = effects.Generate();
 
             equipmentDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
             equipmentDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
@@ -443,23 +445,48 @@ namespace RandomlyGeneratedItems
             return log;
         }
 
-        private GameObject GenerateRandomItemPrefab(Color[] coreColors, string xmlSafeItemName, int shape = 0, bool randomShade = true, Vector2[] randomShadeOffsets = null)
+        private GameObject GenerateRandomItemPrefab(Color[] coreColors, string xmlSafeItemName, SpriteShape shape, bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
             GameObject prefab = new GameObject();
-            GameObject model;
+            GameObject model, scaledModel;
 
             switch (shape)
             {
-                default: // cube
+                case SpriteShape.Square:
                     model = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     break;
-                case 1: // diamond
+                case SpriteShape.Rhombus:
                     model = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    model.transform.Rotate(45, 45, 45);
+                    model.transform.Rotate(35.25f, 0f, 45f);
                     break;
-                case 2: // sphere
+                case SpriteShape.Circle:
                     model = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                     break;
+                case SpriteShape.Diamond:
+                    model = new GameObject
+                    {
+                        transform =
+                        {
+                            localScale = new Vector3(0.5f, 1f, 0.5f)
+                        }
+                    };
+                    scaledModel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    scaledModel.transform.Rotate(35.25f, 0f, 45f);
+                    scaledModel.transform.SetParent(model.transform);
+                    break;
+                case SpriteShape.Cylinder:
+                    model = new GameObject
+                    {
+                        transform =
+                        {
+                            localScale = new Vector3(0.5f, 1f, 0.5f)
+                        }
+                    };
+                    scaledModel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    scaledModel.transform.SetParent(model.transform);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(shape));
             }
 
             model.transform.SetParent(prefab.transform);
@@ -524,7 +551,7 @@ namespace RandomlyGeneratedItems
             return prefab.InstantiateClone($"{xmlSafeItemName}-model", false);
         }
 
-        private static Sprite GenerateRandomItemIcon(Color borderColor, Color[] coreColors, int shape = 0, ulong? seed = null)
+        private static Sprite GenerateRandomItemIcon(Color borderColor, Color[] coreColors, SpriteShape shape, ulong? seed = null)
         {
             Xoroshiro128Plus rng = seed.HasValue ? new Xoroshiro128Plus(seed.Value) : new Xoroshiro128Plus(Main.Rng);
 
@@ -539,7 +566,7 @@ namespace RandomlyGeneratedItems
             return icon;
         }
 
-        private static Sprite GenerateIcon(Color borderColor, Color[] coreColors, int shape = 0,
+        private static Sprite GenerateIcon(Color borderColor, Color[] coreColors, SpriteShape shape,
             bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
             return GenerateIcon(borderColor, coreColors, ShapeDelegates[shape].Item1, ShapeDelegates[shape].Item2,

@@ -11,7 +11,9 @@ namespace RandomlyGeneratedItems.RandomEffects
     {
         public readonly ItemDef Item;
 
-        public ItemEffects(ItemDef item, Xoroshiro128Plus rng) : base(item.name, item.pickupIconSprite, rng)
+        public override Sprite Sprite => Item.pickupIconSprite;
+
+        public ItemEffects(ItemDef item, Xoroshiro128Plus rng) : base(item.name, rng)
         {
             Item = item;
         }
@@ -21,7 +23,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             return body && body.inventory ? body.inventory.GetItemCount(Item) : 0;
         }
 
-        public override int Generate()
+        public override SpriteShape Generate()
         {
             Rng = new Xoroshiro128Plus(Rng);
             Description = string.Empty;
@@ -162,7 +164,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             {
                 SpriteColors = new Color[passiveColors.Length];
                 Array.Copy(passiveColors, 0, SpriteColors, 0, passiveColors.Length);
-                return 0;
+                return SpriteShape.Square;
             }
             
             EffectTriggerType effectTriggerType;
@@ -217,7 +219,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             if (passiveColors != null) Array.Copy(passiveColors, 0, SpriteColors, 0, passiveColors.Length);
             Array.Copy(triggeredColors, 0, SpriteColors, SpriteColors.Length - triggeredColors.Length, triggeredColors.Length);
 
-            return hasPassiveEffect ? 2 : 1;
+            return hasPassiveEffect ? SpriteShape.Circle : SpriteShape.Rhombus;
         }
     }
 }
