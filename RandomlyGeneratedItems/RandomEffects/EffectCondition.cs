@@ -33,7 +33,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 "HasShield", "HasBarrier", "AtFullHP");
             RegisterCondition("AtFullHP", 1.5f, _ => "While at <style=cIsHealth>full health</style>, ", _ => body => body.healthComponent.combinedHealthFraction >= 1f,
                 "UnderHalfHP");
-            RegisterCondition("Midair", 2f, _ => "While <style=cIsUtility>midair</style>, ", _ => body => body.characterMotor.lastGroundedTime >= Run.FixedTimeStamp.now + 0.2f,
+            RegisterCondition("Midair", 2f, _ => "While <style=cIsUtility>midair</style>, ", _ => body => body.characterMotor.lastGroundedTime < Run.FixedTimeStamp.now - 0.2f,
                 "NotMoving");
             RegisterCondition("Debuffed", 2f, _ => "While <style=cIsHealth>debuffed</style>, ", _ => body => body.activeBuffsList.Any(index => BuffCatalog.GetBuffDef(index).isDebuff));
             RegisterCondition("First3Minutes", 2f, _ => "For the first <style=cIsUtility>3 minutes</style> every stage, ", _ => _ => Stage.instance && Run.instance.fixedTime - Stage.instance.entryTime.t <= 180);

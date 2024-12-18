@@ -173,7 +173,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                     DotController.InflictDot(ref dotInfo);
                 };
             }, effect =>
-                            $"<style=cDeath>bleed</style> a target for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>{(effect.TriggeredStackScaling > 0 ? $" <style=cStack>(+{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * effect.TriggeredStackScaling:0.#} per stack)</style>" : "")}."
+                            $"<style=cDeath>bleed</style> the target for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>{(effect.TriggeredStackScaling > 0 ? $" <style=cStack>(+{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * effect.TriggeredStackScaling:0.#} per stack)</style>" : "")}."
             ).BindTriggerTypes(attackTriggerTypes);
 
             RegisterTriggeredEffect("Heal", 1f, 1f, new[] { Color.green }, new[] { ItemTag.Healing }, effect =>

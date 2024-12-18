@@ -4,12 +4,14 @@ using System.Linq;
 using HarmonyLib;
 using RoR2;
 using UnityEngine;
+using UnityEngine.TextCore;
 
 namespace RandomlyGeneratedItems.RandomEffects
 {
     public class ItemEffects : AbstractEffects
     {
-        public readonly ItemDef Item;
+        public ItemDef Item;
+        public ItemDef InactiveItem;
 
         public override Sprite Sprite => Item.pickupIconSprite;
 
@@ -21,6 +23,26 @@ namespace RandomlyGeneratedItems.RandomEffects
         public override int GetStackCount(CharacterBody body)
         {
             return body && body.inventory ? body.inventory.GetItemCount(Item) : 0;
+        }
+
+        public override void Deactivate(CharacterBody body, int amount = -1)
+        {
+            int stackCount = body.inventory.GetItemCount(InactiveItem);
+            if (stackCount < 1) return;
+            if (amount != -1 && amount < stackCount) stackCount = amount;
+            body.inventory.RemoveItem(Item, stackCount);
+            body.inventory.GiveItem(InactiveItem, stackCount);
+            CharacterMasterNotificationQueue.SendTransformNotification(body.master, InactiveItem.itemIndex, Item.itemIndex, CharacterMasterNotificationQueue.TransformationType.Default);
+        }
+
+        public override void Reactivate(CharacterBody body, int amount = -1)
+        {
+            int stackCount = body.inventory.GetItemCount(InactiveItem);
+            if (stackCount < 1) return;
+            if (amount != -1 && amount < stackCount) stackCount = amount;
+            body.inventory.RemoveItem(InactiveItem, stackCount);
+            body.inventory.GiveItem(Item, stackCount);
+            CharacterMasterNotificationQueue.SendTransformNotification(body.master, InactiveItem.itemIndex, Item.itemIndex, CharacterMasterNotificationQueue.TransformationType.RegeneratingScrapRegen);
         }
 
         public override SpriteShape Generate()
@@ -41,17 +63,17 @@ namespace RandomlyGeneratedItems.RandomEffects
                     break;
                 case ItemTier.Tier2:
                     Grade = 2;
-                    strengthModifier = 3.2f;
+                    strengthModifier = 3f;
                     stackScalingModifier = 0.5f;
                     break;
                 case ItemTier.Tier3:
                     Grade = 3;
                     strengthModifier = 12f;
-                    stackScalingModifier = 0.15f;
+                    stackScalingModifier = 0.5f;
                     break;
                 case ItemTier.Boss:
                     Grade = 4;
-                    strengthModifier = 3f;
+                    strengthModifier = 6f;
                     stackScalingModifier = 0.25f;
                     break;
                 case ItemTier.VoidTier1:
@@ -61,23 +83,23 @@ namespace RandomlyGeneratedItems.RandomEffects
                     break;
                 case ItemTier.VoidTier2:
                     Grade = 2;
-                    strengthModifier = 2.4f;
+                    strengthModifier = 2f;
                     stackScalingModifier = 0.75f;
                     break;
                 case ItemTier.VoidTier3:
                     Grade = 3;
                     strengthModifier = 8f;
-                    stackScalingModifier = 0.45f;
+                    stackScalingModifier = 0.75f;
                     break;
                 case ItemTier.VoidBoss:
                     Grade = 4;
-                    strengthModifier = 2f;
-                    stackScalingModifier = 0.6f;
+                    strengthModifier = 4f;
+                    stackScalingModifier = 0.5f;
                     break;
                 case ItemTier.Lunar:
                     Grade = 5;
-                    strengthModifier = 1.8f;
-                    stackScalingModifier = 0.5f;
+                    strengthModifier = 12f;
+                    stackScalingModifier = 1f;
                     break;
                 default:
                     Grade = 0;
@@ -152,6 +174,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 if (passiveEffect.ItemTags?.Length > 0) Item.tags = Item.tags.AddRangeToArray(passiveEffect.ItemTags);
 
                 OnPassiveEffect += passiveEffect.GetPassiveEffectCallback(this);
+                OnPassiveSpecialStat += passiveEffect.GetPassiveSpecialStatCallback(this);
                 string passiveDesc = passiveEffect.DescriptionDelegate(this);
                 if (conditionCount > 0)
                 {

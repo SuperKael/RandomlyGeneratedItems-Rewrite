@@ -98,6 +98,8 @@ namespace RandomlyGeneratedItems
                 "The number of uncommon items to generate.").Value;
             ItemTypeCounts[ItemTier.Tier3] = Main.RgiConfig.Bind("Configuration", "Legendary Items", 20,
                 "The number of legendary items to generate.").Value;
+            ItemTypeCounts[ItemTier.Boss] = Main.RgiConfig.Bind("Configuration", "Boss Items", 5,
+                "The number of boss items to generate.").Value;
             ItemTypeCounts[ItemTier.VoidTier1] = Main.RgiConfig.Bind("Configuration", "Void Common Items", 3,
                 "The number of void common items to generate.").Value;
             ItemTypeCounts[ItemTier.VoidTier2] = Main.RgiConfig.Bind("Configuration", "Void Uncommon Items", 3,
@@ -163,6 +165,13 @@ namespace RandomlyGeneratedItems
                     }
                     tier3Items.Dispose();
 
+                    LanguageAPI.AddOverlay(transformations.SelectMany(
+                            pair => new[] { (descToken: pair.itemDef2.pickupToken, pair.itemDef1.nameToken), (descToken: pair.itemDef2.descriptionToken, pair.itemDef1.nameToken) })
+                        .ToDictionary(
+                            pair => pair.descToken, 
+                            pair => Language.currentLanguage.GetLocalizedStringByToken(pair.descToken) 
+                                    + $"\n<style=cIsVoid>Corrupts all {Language.currentLanguage.GetLocalizedStringByToken(pair.nameToken + "_PLURAL")}</style>."));
+
                     ItemCatalog.itemRelationships[DLC1Content.ItemRelationshipTypes.ContagiousItem]
                         = ItemCatalog.itemRelationships[DLC1Content.ItemRelationshipTypes.ContagiousItem]
                             .AddRangeToArray(transformations.ToArray());
@@ -222,14 +231,82 @@ namespace RandomlyGeneratedItems
                 orig(self);
             };
 
+            On.RoR2.ExplicitPickupDropTable.GenerateWeightedSelection += (orig, self) =>
+            {
+                if (RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
+                {
+#pragma warning disable CS0618 // Type or member is obsolete
+                    for (int i = 0; i < self.entries.Length; i++)
+                    {
+                        PickupIndex pickupIndex = PickupCatalog.FindPickupIndex(self.entries[i].pickupName);
+                        if (pickupIndex == PickupIndex.none) continue;
+                        PickupDef pickup = PickupCatalog.GetPickupDef(pickupIndex);
+                        if (pickup == null) continue;
+                        if (pickup.itemIndex != ItemIndex.None)
+                        {
+                            ItemDef item = ItemCatalog.GetItemDef(pickup.itemIndex);
+                            if (item == null || item.requiredExpansion == RgiExpansion) continue;
+                            ItemDef randomizedItem = RandomizeItemPickup(item.tier);
+                            if (randomizedItem != null)
+                            {
+                                self.entries[i].pickupName = PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(randomizedItem.itemIndex))?.internalName;
+                            }
+                        }
+                        else if (pickup.equipmentIndex != EquipmentIndex.None)
+                        {
+                            EquipmentDef equipment = EquipmentCatalog.GetEquipmentDef(pickup.equipmentIndex);
+                            if (equipment == null || equipment.requiredExpansion == RgiExpansion) continue;
+                            EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
+                            if (randomizedEquipment != null)
+                            {
+                                self.entries[i].pickupName = PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(randomizedEquipment.equipmentIndex))?.internalName;
+                            }
+                        }
+                    }
+#pragma warning restore CS0618 // Type or member is obsolete
+                    for (int i = 0; i < self.pickupEntries.Length; i++)
+                    {
+                        if (self.pickupEntries[i].pickupDef is ItemDef item)
+                        {
+                            ItemDef randomizedItem = RandomizeItemPickup(item.tier);
+                            if (randomizedItem != null)
+                            {
+                                self.pickupEntries[i].pickupDef = randomizedItem;
+                            }
+                        }
+                        else if (self.pickupEntries[i].pickupDef is EquipmentDef equipment)
+                        {
+                            EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
+                            if (randomizedEquipment != null)
+                            {
+                                self.pickupEntries[i].pickupDef = randomizedEquipment;
+                            }
+                        }
+                    }
+                }
+                orig(self);
+            };
+
+            On.RoR2.BasicPickupDropTable.IsFilterRequired += (orig, self) => orig(self) && (!self.requiredItemTags.Contains(ItemTag.HalcyoniteShrine) || !RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity));
+
             bool wasNotMoving = true;
+            bool wasOnGround = true;
             On.RoR2.CharacterBody.Update += (orig, self) =>
             {
                 orig(self);
-                if (!self || !self.isPlayerControlled ||
-                    self.GetNotMoving() == wasNotMoving) return;
-                wasNotMoving = !wasNotMoving;
-                self.RecalculateStats();
+                if (!self || !self.isPlayerControlled) return;
+                bool needsRecalculate = false;
+                if (self.GetNotMoving() != wasNotMoving)
+                {
+                    wasNotMoving = !wasNotMoving;
+                    needsRecalculate = true;
+                }
+                if (self.characterMotor.lastGroundedTime < Run.FixedTimeStamp.now - 0.2f != wasOnGround)
+                {
+                    wasOnGround = !wasOnGround;
+                    needsRecalculate = true;
+                }
+                if (needsRecalculate) self.RecalculateStats();
             };
 
             RecalculateStatsAPI.GetStatCoefficients += AbstractEffects.ApplyPassiveEffects;
@@ -299,6 +376,14 @@ namespace RandomlyGeneratedItems
                 });
                 return true;
             };
+
+            On.RoR2.Inventory.CalculateEquipmentCooldownScale += (orig, self) =>
+            {
+                float cooldownScale = orig(self);
+                AbstractEffects.ApplyPassiveSpecialStat(self.GetComponent<CharacterMaster>()?.GetBody(),
+                    "EquipmentCooldownScale", ref cooldownScale);
+                return cooldownScale;
+            };
             
             contentPackArgs.ReportProgress(1);
             yield break;
@@ -324,7 +409,7 @@ namespace RandomlyGeneratedItems
         {
             ItemDef itemDef = ScriptableObject.CreateInstance<ItemDef>();
 
-            (string itemName, string xmlSafeItemName) = GenerateRandomItemName();
+            (string itemName, string itemNamePlural, string xmlSafeItemName) = GenerateRandomItemName();
 
             if (string.IsNullOrEmpty(itemName) || string.IsNullOrEmpty(xmlSafeItemName)) throw new InvalidOperationException("Failed to generate a new item name!");
 
@@ -340,20 +425,43 @@ namespace RandomlyGeneratedItems
             itemDef.deprecatedTier = tier;
 #pragma warning restore CS0618
 
-            itemDef.AutoPopulateTokens();
-
             ItemEffects effects = new(itemDef, Main.Rng);
             SpriteShape spriteShape = effects.Generate();
 
             itemDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
             itemDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
 
-            effects.Register();
+            string logEntry = GenerateRandomItemLogEntry();
 
             LanguageAPI.Add(itemDef.nameToken, itemName);
+            LanguageAPI.Add(itemDef.nameToken + "_PLURAL", itemNamePlural);
             LanguageAPI.Add(itemDef.pickupToken, effects.Description);
             LanguageAPI.Add(itemDef.descriptionToken, effects.Description);
-            LanguageAPI.Add(itemDef.loreToken, GenerateRandomItemLogEntry());
+            LanguageAPI.Add(itemDef.loreToken, logEntry);
+
+            if (effects.HasInactiveForm)
+            {
+                ItemDef inactiveDef = ScriptableObject.CreateInstance<ItemDef>();
+                inactiveDef.name = itemDef.name + "INACTIVE";
+                inactiveDef.AutoPopulateTokens();
+                inactiveDef.requiredExpansion = RgiExpansion;
+                inactiveDef.hidden = true;
+                inactiveDef.tier = tier;
+#pragma warning disable CS0618
+                inactiveDef.deprecatedTier = tier;
+#pragma warning restore CS0618
+                inactiveDef.pickupModelPrefab = itemDef.pickupModelPrefab;
+                inactiveDef.pickupIconSprite = GenerateInactiveIcon(itemDef.pickupIconSprite);
+
+                LanguageAPI.Add(inactiveDef.nameToken, itemName);
+                LanguageAPI.Add(inactiveDef.pickupToken, effects.Description + "\nThis item is currently inactive.");
+                LanguageAPI.Add(inactiveDef.descriptionToken, effects.Description + "\nThis item is currently inactive.");
+                LanguageAPI.Add(inactiveDef.loreToken, logEntry);
+
+                effects.InactiveItem = inactiveDef;
+            }
+
+            effects.Register();
 
             Main.RgiLogger.LogDebug("Generated a " + tier + " item named " + itemName);
             GeneratedItemDefs.Add(itemDef);
@@ -374,7 +482,7 @@ namespace RandomlyGeneratedItems
         {
             EquipmentDef equipmentDef = ScriptableObject.CreateInstance<EquipmentDef>();
 
-            (string itemName, string xmlSafeItemName) = GenerateRandomItemName();
+            (string itemName, string itemNamePlural, string xmlSafeItemName) = GenerateRandomItemName();
 
             if (string.IsNullOrEmpty(itemName) || string.IsNullOrEmpty(xmlSafeItemName)) throw new InvalidOperationException("Failed to generate a new equipment name!");
 
@@ -394,34 +502,57 @@ namespace RandomlyGeneratedItems
             equipmentDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
             equipmentDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
 
-            effects.Register();
+            string logEntry = GenerateRandomItemLogEntry();
 
             LanguageAPI.Add(equipmentDef.nameToken, itemName);
+            LanguageAPI.Add(equipmentDef.nameToken + "_PLURAL", itemNamePlural);
             LanguageAPI.Add(equipmentDef.pickupToken, effects.Description);
             LanguageAPI.Add(equipmentDef.descriptionToken, effects.Description);
-            LanguageAPI.Add(equipmentDef.loreToken, GenerateRandomItemLogEntry());
+            LanguageAPI.Add(equipmentDef.loreToken, logEntry);
+
+            if (effects.HasInactiveForm)
+            {
+                EquipmentDef inactiveDef = ScriptableObject.CreateInstance<EquipmentDef>();
+                inactiveDef.name = equipmentDef.name + "_INACTIVE";
+                inactiveDef.AutoPopulateTokens();
+                inactiveDef.requiredExpansion = RgiExpansion;
+                inactiveDef.isLunar = isLunar;
+                inactiveDef.isBoss = isBoss;
+                inactiveDef.canDrop = false;
+                inactiveDef.pickupModelPrefab = equipmentDef.pickupModelPrefab;
+                inactiveDef.pickupIconSprite = GenerateInactiveIcon(equipmentDef.pickupIconSprite);
+
+                LanguageAPI.Add(inactiveDef.nameToken, itemName);
+                LanguageAPI.Add(inactiveDef.pickupToken, effects.Description + "\nThis equipment is currently inactive.");
+                LanguageAPI.Add(inactiveDef.descriptionToken, effects.Description + "\nThis equipment is currently inactive.");
+                LanguageAPI.Add(inactiveDef.loreToken, logEntry);
+
+                effects.InactiveEquipment = inactiveDef;
+            }
+
+            effects.Register();
 
             Main.RgiLogger.LogDebug("Generated a " + (isLunar ? "lunar " : "") + (isBoss ? "boss " : "") + "equipment named " + itemName);
             GeneratedEquipmentDefs.Add(equipmentDef);
             yield break;
         }
 
-        private (string itemName, string xmlSafeItemName) GenerateRandomItemName()
+        private (string itemName, string itemNamePlural, string xmlSafeItemName) GenerateRandomItemName()
         {
             int attempts = 0;
             while (attempts < 25)
             {
-                var prefixRng2 = Main.Rng.RangeInt(0, NameSystem.ItemNamePrefix.Count);
-                var nameRng2 = Main.Rng.RangeInt(0, NameSystem.ItemName.Count);
-                string itemName = "";
-                itemName += NameSystem.ItemNamePrefix[prefixRng2] + " ";
-                itemName += NameSystem.ItemName[nameRng2];
-                string xmlSafeItemName = itemName.ToUpper().Replace(" ", "_").Replace("'", "").Replace("&", "AND");
-                if (GeneratedNames.Add(xmlSafeItemName)) return (itemName, xmlSafeItemName);
+                var prefixRng = Main.Rng.RangeInt(0, NameSystem.ItemNamePrefix.Count);
+                var nameRng = Main.Rng.RangeInt(0, NameSystem.ItemName.Count);
+                string prefix = NameSystem.ItemNamePrefix[prefixRng] + " ";
+                string name = prefix + NameSystem.ItemName[nameRng];
+                string namePlural = prefix + NameSystem.ItemNamePlural[nameRng];
+                string xmlSafeItemName = name.ToUpper().Replace(" ", "_").Replace("'", "").Replace("&", "AND");
+                if (GeneratedNames.Add(xmlSafeItemName)) return (name, namePlural, xmlSafeItemName);
                 attempts++;
             }
 
-            return (null, null);
+            return (null, null, null);
         }
 
         private string GenerateRandomItemLogEntry()
@@ -635,6 +766,43 @@ namespace RandomlyGeneratedItems
             tex.Apply();
 
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+        }
+
+        private static Sprite GenerateInactiveIcon(Sprite activeIcon)
+        {
+            Texture2D tex = new(activeIcon.texture.width, activeIcon.texture.height);
+            tex.SetAllPixels32(activeIcon.texture.GetPixels32(0).Select(c =>
+            {
+                float cVal = c.r / 255f * 0.2126f + c.g / 255f * 0.7152f + c.b / 255f * 0.0722f;
+                cVal = cVal <= 0.0031308 ? cVal * 12.92f : Mathf.Pow(cVal, 1 / 2.4f) * 1.055f - 0.055f;
+                byte cByte = (byte) Mathf.RoundToInt(cVal * 255);
+                return new Color32(cByte, cByte, cByte, c.a);
+            }).ToArray(), 0);
+            return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+        }
+
+        private ItemDef RandomizeItemPickup(ItemTier tier)
+        {
+            if (!ItemTypeCounts.TryGetValue(tier, out int tierCount) || tierCount <= 0) return null;
+            int itemIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, tierCount);
+            return GeneratedItemDefs.FirstOrDefault(itemDef => itemDef.tier == tier && itemIndex-- == 0);
+        }
+
+        private EquipmentDef RandomizeEquipmentPickup(bool isLunar, bool isBoss)
+        {
+            if (EquipmentCount == 0) return null;
+            int equipmentIndex;
+            int matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss);
+            if (matchingEquipmentCount > 0)
+            {
+                equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
+                return GeneratedEquipmentDefs.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss && equipmentIndex-- == 0);
+            }
+            matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => equipmentDef.isLunar == isLunar);
+            if (isLunar && matchingEquipmentCount <= 0) matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => !equipmentDef.isLunar);
+            if (matchingEquipmentCount <= 0) return null;
+            equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
+            return GeneratedEquipmentDefs.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentIndex-- == 0);
         }
     }
 }

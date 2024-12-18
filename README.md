@@ -4,6 +4,15 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.0.5**
+* Fix the "while midair" condition, which previously just did not work at all.
+* Fix the "reduce equipment cooldown" effect, which previously reduced special skill cooldown instead.
+* Fix the Halcyon Shrine giving no rewards when the Artifact of Frivolity is active. At least, I hope it is fixed, I don't own the Seekers of the Storm DLC and cannot test it...
+* Adjusted both initial strength and stacking of effects on green, red, and void items.
+* Add text to void item descriptions indicating the item that they corrupt.
+* Random boss items can now be generated, although there is nothing special about them. They will be expanded upon with some unique effects in a future update.
+* Enemies that drop specific items no longer bypass the Artifact of Frivolity. Instead, they will drop one specific randomly generated item of the same tier.
+
 **2.0.4**
 
 * Add a handful of special effects that only appear on equipment, never on normal items.

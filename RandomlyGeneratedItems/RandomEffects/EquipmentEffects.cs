@@ -7,7 +7,8 @@ namespace RandomlyGeneratedItems.RandomEffects
 {
     public class EquipmentEffects : AbstractEffects
     {
-        public readonly EquipmentDef Equipment;
+        public EquipmentDef Equipment;
+        public EquipmentDef InactiveEquipment;
 
         public override Sprite Sprite => Equipment.pickupIconSprite;
 
@@ -19,6 +20,18 @@ namespace RandomlyGeneratedItems.RandomEffects
         public override int GetStackCount(CharacterBody body)
         {
             return body.equipmentSlot.equipmentIndex == Equipment.equipmentIndex ? 1 : 0;
+        }
+
+        public override void Deactivate(CharacterBody body, int amount = -1)
+        {
+            CharacterMasterNotificationQueue.SendTransformNotification(body.master, Equipment.equipmentIndex, InactiveEquipment.equipmentIndex, CharacterMasterNotificationQueue.TransformationType.Default);
+            body.inventory.SetEquipmentIndex(InactiveEquipment.equipmentIndex);
+        }
+
+        public override void Reactivate(CharacterBody body, int amount = -1)
+        {
+            CharacterMasterNotificationQueue.SendTransformNotification(body.master, InactiveEquipment.equipmentIndex, Equipment.equipmentIndex, CharacterMasterNotificationQueue.TransformationType.RegeneratingScrapRegen);
+            body.inventory.SetEquipmentIndex(Equipment.equipmentIndex);
         }
 
         public override SpriteShape Generate()
@@ -68,6 +81,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 passiveColors = passiveEffect.SpriteColors;
 
                 OnPassiveEffect += passiveEffect.GetPassiveEffectCallback(this);
+                OnPassiveSpecialStat += passiveEffect.GetPassiveSpecialStatCallback(this);
                 string passiveDesc = passiveEffect.DescriptionDelegate(this);
                 Description += "Passively " + char.ToLower(passiveDesc[0]) + passiveDesc[1..];
             }
@@ -108,6 +122,8 @@ namespace RandomlyGeneratedItems.RandomEffects
             Equipment.cooldown = (float) Math.Round(Equipment.cooldown, 2);
 
             Description += triggerDesc;
+
+            if (Equipment.cooldown > 0) Description += $"\nCooldown: <style=cIsUtility>{Equipment.cooldown:0.#} seconds</style>";
 
             if (SpriteColors?.Length > 0)
             {

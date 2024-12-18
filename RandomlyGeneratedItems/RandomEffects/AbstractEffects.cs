@@ -6,13 +6,13 @@ using R2API;
 using RoR2;
 using RoR2.ContentManagement;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace RandomlyGeneratedItems.RandomEffects
 {
     public abstract class AbstractEffects
     {
         public static readonly Dictionary<string, AbstractEffects> RegisteredEffects = new();
+        public static readonly Dictionary<string, AbstractEffects> RegisteredInactiveEffects = new();
         public static readonly Dictionary<string, List<string>> TriggerTypeMap = new();
 
         public int Grade;
@@ -24,6 +24,8 @@ namespace RandomlyGeneratedItems.RandomEffects
         public float TriggeredStackScaling;
         public float Chance;
         public float ChanceStackScaling;
+        public bool HasInactiveForm;
+        public string ReactivationTrigger;
         public ProcType? ProcType;
         public Color[] SpriteColors;
 
@@ -34,7 +36,9 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public List<EffectCondition.ConditionCallback> Conditions = new();
         public event PassiveEffect.PassiveEffectCallback OnPassiveEffect;
+        public event PassiveEffect.PassiveSpecialStatCallback OnPassiveSpecialStat;
         public event TriggeredEffect.TriggeredEffectCallback OnTriggeredEffect;
+        public List<EffectCondition.ConditionCallback> ReactivationConditions = new();
 
         public Xoroshiro128Plus Rng;
 
@@ -60,7 +64,8 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             foreach (ItemIndex index in character.inventory.itemAcquisitionOrder)
             {
-                if (!RegisteredEffects.TryGetValue(ItemCatalog.GetItemDef(index).name, out AbstractEffects itemEffects)) continue;
+                string name = ItemCatalog.GetItemDef(index).name;
+                if (!RegisteredEffects.TryGetValue(name, out AbstractEffects itemEffects)) continue;
 
                 int stackCount = itemEffects.GetStackCount(character);
                 if (stackCount <= 0 || !itemEffects.ConditionsMet(character)) continue;
@@ -91,31 +96,69 @@ namespace RandomlyGeneratedItems.RandomEffects
             }
         }
 
-        public static void TriggerEffects(string name, CharacterBody character, Dictionary<string, object> args)
+        public static void ApplyPassiveSpecialStat(CharacterBody character, string stat, ref float value)
         {
-            TriggerEffects(name, character, 1f, null, args);
+            if (!character || !character.inventory) return;
+
+            foreach (ItemIndex index in character.inventory.itemAcquisitionOrder)
+            {
+                string name = ItemCatalog.GetItemDef(index).name;
+                if (!RegisteredEffects.TryGetValue(name, out AbstractEffects itemEffects)) continue;
+
+                int stackCount = itemEffects.GetStackCount(character);
+                if (stackCount <= 0 || !itemEffects.ConditionsMet(character)) continue;
+
+                try
+                {
+                    value = itemEffects.OnPassiveSpecialStat?.Invoke(stat, value, stackCount, character) ?? value;
+                }
+                catch (Exception ex)
+                {
+                    Main.RgiLogger.LogError($"Error invoking passive special stat {stat} for item {itemEffects.Name}:");
+                    Main.RgiLogger.LogError(ex);
+                }
+            }
+
+            if (character.equipmentSlot == null || character.equipmentSlot.equipmentIndex == EquipmentIndex.None ||
+                !RegisteredEffects.TryGetValue(EquipmentCatalog.GetEquipmentDef(character.equipmentSlot.equipmentIndex).name,
+                    out AbstractEffects equipmentEffects)) return;
+
+            try
+            {
+                value = equipmentEffects.OnPassiveSpecialStat?.Invoke(stat, value, 1, character) ?? value;
+            }
+            catch (Exception ex)
+            {
+                Main.RgiLogger.LogError($"Error invoking passive special stat for equipment {equipmentEffects.Name}:");
+                Main.RgiLogger.LogError(ex);
+            }
         }
 
-        public static void TriggerEffects(string name, CharacterBody character, ProcChainMask? procChainMask, Dictionary<string, object> args)
+        public static void TriggerEffects(string triggerType, CharacterBody character, Dictionary<string, object> args)
         {
-            TriggerEffects(name, character, 1f, procChainMask, args);
+            TriggerEffects(triggerType, character, 1f, null, args);
         }
 
-        public static void TriggerEffects(string name, CharacterBody character, DamageReport damageReport, Dictionary<string, object> args)
+        public static void TriggerEffects(string triggerType, CharacterBody character, ProcChainMask? procChainMask, Dictionary<string, object> args)
+        {
+            TriggerEffects(triggerType, character, 1f, procChainMask, args);
+        }
+
+        public static void TriggerEffects(string triggerType, CharacterBody character, DamageReport damageReport, Dictionary<string, object> args)
         {
             args ??= new Dictionary<string, object>();
             args["damageReport"] = damageReport;
-            TriggerEffects(name, character, damageReport.damageInfo, args);
+            TriggerEffects(triggerType, character, damageReport.damageInfo, args);
         }
 
-        public static void TriggerEffects(string name, CharacterBody character, DamageInfo damageInfo, Dictionary<string, object> args)
+        public static void TriggerEffects(string triggerType, CharacterBody character, DamageInfo damageInfo, Dictionary<string, object> args)
         {
             args ??= new Dictionary<string, object>();
             args["damageInfo"] = damageInfo;
-            TriggerEffects(name, character, damageInfo.procCoefficient, damageInfo.procChainMask, args);
+            TriggerEffects(triggerType, character, damageInfo.procCoefficient, damageInfo.procChainMask, args);
         }
 
-        public static void TriggerEffects(string name, CharacterBody character, float procCoefficient,
+        public static void TriggerEffects(string triggerType, CharacterBody character, float procCoefficient,
             ProcChainMask? procChainMask, Dictionary<string, object> args)
         {
             if (!character || !character.inventory) return;
@@ -124,13 +167,23 @@ namespace RandomlyGeneratedItems.RandomEffects
             ProcChainMask newMask = new();
             if (procChainMask.HasValue) newMask.mask = procChainMask.Value.mask;
 
-            foreach (ItemIndex index in character.inventory.itemAcquisitionOrder)
+            foreach (ItemIndex index in character.inventory.itemAcquisitionOrder.ToList())
             {
-                if (!RegisteredEffects.TryGetValue(ItemCatalog.GetItemDef(index).name, out AbstractEffects itemEffects) || itemEffects.TriggerType != name) continue;
+                string name = ItemCatalog.GetItemDef(index).name;
+
+                if (RegisteredInactiveEffects.TryGetValue(name, out AbstractEffects inactiveEffects) && 
+                    triggerType == inactiveEffects.ReactivationTrigger && 
+                    inactiveEffects.ReactivationConditions.All(condition => condition(character)))
+                {
+                    name = inactiveEffects.Name;
+                    inactiveEffects.Reactivate(character);
+                }
+
+                if (!RegisteredEffects.TryGetValue(name, out AbstractEffects itemEffects) || triggerType != itemEffects.TriggerType) continue;
 
                 int stackCount = itemEffects.GetStackCount(character);
                 float chance = itemEffects.GetChance(stackCount, procCoefficient);
-                if (!args.ContainsKey("forceTrigger") && (stackCount <= 0 || !itemEffects.ConditionsMet(character) || chance < 100 && !Util.CheckRoll(chance, character.master))) continue;
+                if (stackCount <= 0 || !args.ContainsKey("forceTrigger") && (!itemEffects.ConditionsMet(character) || chance < 100 && !Util.CheckRoll(chance, character.master))) continue;
 
                 if (procChainMask.HasValue && itemEffects.ProcType.HasValue)
                 {
@@ -151,7 +204,17 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             if (character.equipmentSlot == null || character.equipmentSlot.equipmentIndex == EquipmentIndex.None) return;
             EquipmentDef equipment = EquipmentCatalog.GetEquipmentDef(character.equipmentSlot.equipmentIndex);
-            if (equipment == null || !RegisteredEffects.TryGetValue(equipment.name, out AbstractEffects equipmentEffects) || equipmentEffects.TriggerType != name) return;
+            if (equipment == null) return;
+
+            if (RegisteredInactiveEffects.TryGetValue(equipment.name, out AbstractEffects inactiveEquipmentEffects) &&
+                triggerType == inactiveEquipmentEffects.ReactivationTrigger && 
+                inactiveEquipmentEffects.ReactivationConditions.All(condition => condition(character)))
+            {
+                inactiveEquipmentEffects.Reactivate(character);
+                equipment = EquipmentCatalog.GetEquipmentDef(character.equipmentSlot.equipmentIndex);
+            }
+
+            if (!RegisteredEffects.TryGetValue(equipment.name, out AbstractEffects equipmentEffects) || equipmentEffects.TriggerType != triggerType) return;
 
             if (procChainMask.HasValue && equipmentEffects.ProcType.HasValue)
             {
@@ -179,6 +242,7 @@ namespace RandomlyGeneratedItems.RandomEffects
         public void Register()
         {
             RegisteredEffects[Name] = this;
+            if (HasInactiveForm) RegisteredInactiveEffects[Name + "_INACTIVE"] = this;
         }
 
         public bool ConditionsMet(CharacterBody body)
@@ -187,6 +251,8 @@ namespace RandomlyGeneratedItems.RandomEffects
         }
 
         public abstract int GetStackCount(CharacterBody body);
+        public abstract void Deactivate(CharacterBody body, int amount = -1);
+        public abstract void Reactivate(CharacterBody body, int amount = -1);
 
         public float GetChance(int stackCount, float procCoefficient)
         {

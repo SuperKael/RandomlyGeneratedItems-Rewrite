@@ -59,7 +59,7 @@ namespace RandomlyGeneratedItems
         };
 
         public static List<string> ItemName = new()
-        {
+        { 
             "Insomnia", "Letter", "Experiment", "Jetpack", "Light", "Materials", "Buttersnips", "Feelings", "Zyglrox", "Racecar", "Passenger", "Groove",
             "Captain", "Eureka", "Muramasa", "Blast", "Facepalm", "Mute", "Ji", "Luck", "Ragnarok", "Diamond", "Bullfish", "Masamune", "Overture", "Ground",
             "Zero", "Parade", "Aura", "Minute", "Ultra", "Heart", "Scourge", "Alpha", "Gravity", "Hell", "Omega", "Price", "Motormouth", "Marigold", "Priestess",
@@ -76,10 +76,10 @@ namespace RandomlyGeneratedItems
 
             "Glasses", "Clock", "Fork", "Bracelet", "Socks", "Lamp", "Remote", "Bread", "Credit Card", "Book", "Necronomicon", "Shawl", "Candle",
 
-            "Knife","Cannon", "Mortar", "Machine Gun", "Bola", "Boomerang", "Bow", "Crossbow", "Longbow", "Sling", "Spear", "Flamethrower", "Bayonet", "Halberd", "Lance",
+            "Knife", "Cannon", "Mortar", "Machine Gun", "Bola", "Boomerang", "Bow", "Crossbow", "Longbow", "Sling", "Spear", "Flamethrower", "Bayonet", "Halberd", "Lance",
             "Pike", "Quarterstaff", "Sabre", "Sword", "Tomahawk", "Grenade", "Mine", "Shrapnel", "Depth Charge", "C4", "Torpedo", "Trident Missile", "Peacekeeper Missile",
-            "Bazooka", "Blowgun", "Blunderbuss", "Carbine", "Gatling gun", "Handgun", "Pistol", "Revolver", "Derringer", "Arquebus", "Musket", "Rifle",
-            "Shotgun", "Luger", "Repeater", "Submachine gun", "Shrapnel",
+            "Bazooka", "Blowgun", "Blunderbuss", "Carbine", "Gatling Gun", "Handgun", "Pistol", "Revolver", "Derringer", "Arquebus", "Musket", "Rifle",
+            "Shotgun", "Luger", "Repeater", "Submachine Gun", "Shrapnel",
 
             "Hammer", "Screwdriver", "Mallet", "Axe", "Saw", "Scissors", "Chisel", "Pliers", "Drill", "Iron", "Chainsaw", "Scraper", "Wire", "Nail", "Shovel", "Callipers",
             "Scalpel", "Gloves", "Needle",
@@ -95,14 +95,61 @@ namespace RandomlyGeneratedItems
             "Lightning", "Barrage", "Claw", "Snap", "Driver", "Rebound", "Streamline", "Beam", "Blizzard", "Bullseye", "Melter", "Sunder", "Surge", "Hyperbeam",
             "Hologram", "Recursion",
 
-             "Metronome", "Void", "Puzzle", "Piece", "Magnet", "Emblem", "Cuffs", "Flower", "Boneflower", "Booster", "Cake", "Plum", "Apple", "Cane", "Keeper",
-             "Umbrella", "Edge", "Yoyo", "Fork", "Spoon", "Boomerang", "Chakram", "Machete", "Wrench", "Mace", "Meatball", "Hand", "Sickle", "Bat", "Tongue",
-             "Inferno", "Key", "Dragon", "Waver", "Wrath", "Naginata", "Glaive", "Swordfish", "Pole", "Disc", "Hatchet", "Anchor", "Fist", "Pow", "Armor",
-             "Stone", "Skull", "Emblem", "Glove", "Shell", "Blaster", "Cocktail", "Grenade", "Harpoon", "Launcher", "Atomosphere", "Zapper", "Staff", "Scythe",
-             "Bolt", "Rod", "Fracture", "Serpent", "Burst", "Ray", "Blower", "Typhoon", "Syzygy", "Armageddon", "Flare", "Head", "Flask", "Harp", "Thorn",
-             "Tune", "Arcanum", "Blaze",
-
+            "Metronome", "Void", "Puzzle", "Piece", "Magnet", "Emblem", "Cuffs", "Flower", "Boneflower", "Booster", "Cake", "Plum", "Apple", "Cane", "Keeper",
+            "Umbrella", "Edge", "Yoyo", "Fork", "Spoon", "Boomerang", "Chakram", "Machete", "Wrench", "Mace", "Meatball", "Hand", "Sickle", "Bat", "Tongue",
+            "Inferno", "Key", "Dragon", "Waver", "Wrath", "Naginata", "Glaive", "Swordfish", "Pole", "Disc", "Hatchet", "Anchor", "Fist", "Pow", "Armor",
+            "Stone", "Skull", "Emblem", "Glove", "Shell", "Blaster", "Cocktail", "Grenade", "Harpoon", "Launcher", "Atomosphere", "Zapper", "Staff", "Scythe",
+            "Bolt", "Rod", "Fracture", "Serpent", "Burst", "Ray", "Blower", "Typhoon", "Syzygy", "Armageddon", "Flare", "Head", "Flask", "Harp", "Thorn",
+            "Tune", "Arcanum", "Blaze",
+            
             "Load" // for the funny
+        };
+
+        public static List<string> ItemNamePlural = new()
+        {
+            "Insomnias", "Letters", "Experiments", "Jetpacks", "Lights", "Materials", "Buttersnips", "Feelings", "Zyglroxes", "Racecars", "Passengers", "Grooves",
+            "Captains", "Eurekas", "Muramasas", "Blasts", "Facepalms", "Mutes", "Jis", "Luck", "Ragnaroks", "Diamonds", "Bullfish", "Masamunes", "Overtures", "Grounds",
+            "Zeros", "Parades", "Auras", "Minutes", "Ultras", "Hearts", "Scourges", "Alphas", "Gravities", "Hells", "Omegas", "Prices", "Motormouths", "Marigolds", "Priestesses",
+            "Flatlines", "Fires", "Prayers", "Lunes", "Reptiles", "Eagles", "Burners", "Ghosts", "Glows", "Covenants", "Havens", "Ghilans", "Millenniums", "Divisions", "Meridians",
+            "Prototypes", "Voids", "Ruins", "Fears", "Waters", "Avatars", "Decays", "Spines", "Skies", "Movements", "Echoes", "Deadroses", "Rains", "Longings", "Groves",
+            "Oils", "Scorpios", "Oceans", "Portraits", "Golds", "Fates", "Proxies", "Retrospects", "Nocturnes", "Eclipses", "Singularities", "Embers", "Dystopias", "Hexes",
+            "Utopias", "Messengers", "Cages", "Kings", "Orbitals", "Mirror Images", "Arrows", "Matters", "Energies", "Bloods", "Bloods", "Extinctions", "Impermanences",
+            "Wonders", "Libertines", "Goliaths", "Demi Gods", "Meteors", "Fakes", "Skylines", "Snowbloods", "Gungraves", "Shadows", "Houses", "Twilights", "Hymns", "Canvases",
+            "Eidolons", "Remnants", "Fictions", "I", "Animuses", "Deadnests", "Lavoses", "Opiates", "Essences", "Somnuses", "Providences", "Harmonies", "Cimmerians", "Veins",
+            "Clubs", "Molecules", "Spaces", "Followers", "Madnesses", "Faces", "Imagos", "Brahmastras", "Killers", "Holes", "Waves", "Lotuses", "Nightmares", "Scars", "Revenges",
+            "Worlds", "Illusions", "Radiances", "Sequences", "Tragedies", "Convulsions", "Gasolines", "Body Bags", "Loves", "Parasites", "Slayers", "Rips", "Gates", "Harbingers",
+            "Headaches", "Flights", "Mikasas", "Sandalphons", "Venoms", "Horizons", "Tendinitises", "Blood & Waters", "Surrenders", "Everythings", "Elevations", "Peripheries",
+            "Tesseracts", "Augments", "Stases", "Variations", "Afterglows", "Destructions", "Terminas", "Ruins",
+
+            "Glasses", "Clocks", "Forks", "Bracelets", "Socks", "Lamps", "Remotes", "Breads", "Credit Cards", "Books", "Necronomicons", "Shawls", "Candles",
+
+            "Knives", "Cannons", "Mortars", "Machine Guns", "Bolas", "Boomerangs", "Bows", "Crossbows", "Longbows", "Slings", "Spears", "Flamethrowers", "Bayonets", "Halberds", "Lances",
+            "Pikes", "Quarterstaffs", "Sabres", "Swords", "Tomahawks", "Grenades", "Mines", "Shrapnels", "Depth Charges", "C4s", "Torpedoes", "Trident Missiles", "Peacekeeper Missiles",
+            "Bazookas", "Blowguns", "Blunderbusses", "Carbines", "Gatling Guns", "Handguns", "Pistols", "Revolvers", "Derringers", "Arquebuses", "Muskets", "Rifles",
+            "Shotguns", "Lugers", "Repeaters", "Submachine Guns", "Shrapnels",
+
+            "Hammers", "Screwdrivers", "Mallets", "Axes", "Saws", "Scissors", "Chisels", "Pliers", "Drills", "Irons", "Chainsaws", "Scrapers", "Wires", "Nails", "Shovels", "Callipers",
+            "Scalpels", "Gloves", "Needles",
+
+            "Brains", "Lungs", "Livers", "Bladders", "Kidneys", "Hearts", "Stomachs", "Eyes",
+
+            "Animals", "Balloons", "Batteries", "Cameras", "Diseases", "Drugs", "Guitars", "Ices", "Irons", "Quills", "Spoons", "Pens", "Boxes", "Brushes", "Stockings", "Cards",
+
+            "Strikes", "Bashes", "Angers", "Clashes", "Cleaves", "Waves", "Bludgeons", "Carnages", "Rampages", "Armaments", "Grits", "Warcries", "Battle Trances", "Pacts", "Barriers",
+            "Armors", "Blades", "Rages", "Winds", "Sentinels", "Weaknesses", "Offerings", "Embraces", "Ruptures", "Barricades", "Berserks", "Brutalities", "Corruptions",
+            "Banes", "Flechettes", "Skewers", "Grand Finales", "Cloaks", "Poisons", "Wails", "Flasks", "Gambles", "Catalysts", "Clouds", "Distractions", "Plans", "Terrors", "Reflexes",
+            "Caltrops", "Footworks", "Fumes",
+            "Lightnings", "Barrages", "Claws", "Snaps", "Drivers", "Rebounds", "Streamlines", "Beams", "Blizzards", "Bullseyes", "Melters", "Sunders", "Surges", "Hyperbeams",
+            "Holograms", "Recursions",
+
+            "Metronomes", "Voids", "Puzzles", "Pieces", "Magnets", "Emblems", "Cuffs", "Flowers", "Boneflowers", "Boosters", "Cakes", "Plums", "Apples", "Canes", "Keepers",
+            "Umbrellas", "Edges", "Yoyos", "Forks", "Spoons", "Boomerangs", "Chakrams", "Machetes", "Wrenches", "Maces", "Meatballs", "Hands", "Sickles", "Bats", "Tongues",
+            "Infernos", "Keys", "Dragons", "Wavers", "Wraths", "Naginatas", "Glaives", "Swordfish", "Poles", "Discs", "Hatchets", "Anchors", "Fists", "Pows", "Armors",
+            "Stones", "Skulls", "Emblems", "Gloves", "Shells", "Blasters", "Cocktails", "Grenades", "Harpoons", "Launchers", "Atmospheres", "Zappers", "Staffs", "Scythes",
+            "Bolts", "Rods", "Fractures", "Serpents", "Bursts", "Rays", "Blowers", "Typhoons", "Syzygies", "Armageddons", "Flares", "Heads", "Flasks", "Harps", "Thorns",
+            "Tunes", "Arcanums", "Blazes",
+
+            "Loads" // for the funny
         };
 
         public static List<string> LogDesc = new()
@@ -129,20 +176,5 @@ namespace RandomlyGeneratedItems
             "with", "or", "without", "a", "choice", "to", "confront", "every", "vice", "without", "a", "voice", "dont", "deny", "your", "will", "to", "live", "is", "shattered", "and", "your", "hope", "is", "a", "jaded", "lie", "the", "quality", "within", "will", "shape", "the", "path", "we", "choose", "all", "this", "time", "to", "call", "the", "things", "they", "did", "a", "lie", "keep", "it", "to", "yourself", "so", "i", "can", "shove", "the", "dark", "aside", "and", "i", "wont", "have", "to", "tear", "the", "honesty", "from", "everything", "we", "used", "to", "be", "again", "the", "quality", "within", "will", "shape", "the", "path", "we", "choose", "the", "quality", "we", "loose", "will", "form", "the", "grave", "we", "use", "legions", "are", "sent", "from", "the", "negative", "elite", "sucking", "life", "from", "the", "world", "we", "live", "shading", "the", "knowledge", "of", "oneness", "and", "feeding", "the", "shadow", "within", "the", "abyss", "found", "internally", "strength", "to", "change", "our", "misery", "shining", "light", "carves", "the", "way", "for", "their", "demise", "dissecting", "the", "patterns", "in", "our", "own", "lives", "to", "sift", "love", "from", "experience", "remember", "why", "we", "have", "come", "silently", "ascending", "heeding", "the", "universal", "call", "as", "we", "grow", "the", "shadow", "cast", "is", "nearing", "its", "retreat", "we", "are", "now", "in", "the", "time", "of", "the", "fall",
             // extra/icarus
         };
-
-        public static void Populate()
-        {
-            string assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            if (!string.IsNullOrEmpty(assemblyLocation) && File.Exists(Path.Combine(assemblyLocation, "lore.txt")))
-            {
-                string fullText = File.OpenText(Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt")).ReadToEnd();
-                string[] newText = fullText.Replace("\n", "").Split(" ".ToCharArray()[0]);
-                LogDesc.AddRange(newText);
-            }
-            else
-            {
-                Main.RgiLogger.LogWarning("Could not find lore text file at path: " + Assembly.GetExecutingAssembly().Location.Replace("RandomlyGeneratedItems.dll", "lore.txt"));
-            }
-        }
     }
 }
