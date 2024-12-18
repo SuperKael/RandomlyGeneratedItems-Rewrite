@@ -311,6 +311,15 @@ namespace RandomlyGeneratedItems
 
             RecalculateStatsAPI.GetStatCoefficients += AbstractEffects.ApplyPassiveEffects;
 
+            On.RoR2.CharacterBody.RecalculateStats += (orig, self) =>
+            {
+                orig(self);
+                float maxJumpCount = self.maxJumpCount;
+                AbstractEffects.ApplyPassiveSpecialStat(self,
+                    "MaxJumpCount", ref maxJumpCount);
+                self.maxJumpCount = (int)Math.Round(maxJumpCount);
+            };
+
             On.RoR2.GlobalEventManager.ServerDamageDealt += (orig, report) =>
             {
                 AbstractEffects.TriggerEffects("Hit", report.attackerBody, report, null);
@@ -555,7 +564,7 @@ namespace RandomlyGeneratedItems
             return (null, null, null);
         }
 
-        private string GenerateRandomItemLogEntry()
+        public static string GenerateRandomItemLogEntry()
         {
             string log = "";
             int logLength = Main.Rng.RangeInt(0, 120);
@@ -576,7 +585,7 @@ namespace RandomlyGeneratedItems
             return log;
         }
 
-        private GameObject GenerateRandomItemPrefab(Color[] coreColors, string xmlSafeItemName, SpriteShape shape, bool randomShade = true, Vector2[] randomShadeOffsets = null)
+        public static GameObject GenerateRandomItemPrefab(Color[] coreColors, string xmlSafeItemName, SpriteShape shape, bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
             GameObject prefab = new GameObject();
             GameObject model, scaledModel;
@@ -622,6 +631,9 @@ namespace RandomlyGeneratedItems
 
             model.transform.SetParent(prefab.transform);
 
+            Collider collider = prefab.GetComponentInChildren<Collider>();
+            collider.gameObject.layer = LayerIndex.pickups.intVal;
+            collider.isTrigger = true;
 
             Material mat = new(HgStandard);
             Texture2D tex = new(512, 512);
@@ -682,7 +694,7 @@ namespace RandomlyGeneratedItems
             return prefab.InstantiateClone($"{xmlSafeItemName}-model", false);
         }
 
-        private static Sprite GenerateRandomItemIcon(Color borderColor, Color[] coreColors, SpriteShape shape, ulong? seed = null)
+        public static Sprite GenerateRandomItemIcon(Color borderColor, Color[] coreColors, SpriteShape shape, ulong? seed = null)
         {
             Xoroshiro128Plus rng = seed.HasValue ? new Xoroshiro128Plus(seed.Value) : new Xoroshiro128Plus(Main.Rng);
 
@@ -697,14 +709,14 @@ namespace RandomlyGeneratedItems
             return icon;
         }
 
-        private static Sprite GenerateIcon(Color borderColor, Color[] coreColors, SpriteShape shape,
+        public static Sprite GenerateIcon(Color borderColor, Color[] coreColors, SpriteShape shape,
             bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
             return GenerateIcon(borderColor, coreColors, ShapeDelegates[shape].Item1, ShapeDelegates[shape].Item2,
                 randomShade, randomShadeOffsets);
         }
 
-        private static Sprite GenerateIcon(Color borderColor, Color[] coreColors, Func<int, int, bool> shapeDelegate, Func<int, int, bool> borderDelegate, bool randomShade = true, Vector2[] randomShadeOffsets = null)
+        public static Sprite GenerateIcon(Color borderColor, Color[] coreColors, Func<int, int, bool> shapeDelegate, Func<int, int, bool> borderDelegate, bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
             Texture2D tex = new(512, 512);
 
@@ -768,7 +780,7 @@ namespace RandomlyGeneratedItems
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
         }
 
-        private static Sprite GenerateInactiveIcon(Sprite activeIcon)
+        public static Sprite GenerateInactiveIcon(Sprite activeIcon)
         {
             Texture2D tex = new(activeIcon.texture.width, activeIcon.texture.height);
             tex.SetAllPixels32(activeIcon.texture.GetPixels32(0).Select(c =>

@@ -28,10 +28,20 @@ namespace RandomlyGeneratedItems.RandomEffects
                 $"Increase <style=cIsDamage>attack speed</style> by {effect.FormatPassiveStrengthPercentage("IsDamage")}.",
                 0, "OutOfCombat");
 
-            RegisterPassiveEffect("SpeedBoost", 10f, new[] { new Color(0.75f, 0.75f, 1.0f) }, new[] { ItemTag.Utility }, effect => (args, stacks, _) =>
+            RegisterPassiveEffect("SpeedBoost", 10f, new[] { new Color(0.75f, 0.75f, 0.75f) }, new[] { ItemTag.Utility }, effect => (args, stacks, _) =>
                 args.moveSpeedMultAdd += effect.GetPassiveStrength(stacks), effect =>
                 $"Gain {effect.FormatPassiveStrengthPercentage("IsUtility")} <style=cIsUtility>movement speed</style>.",
                 0, "NotMoving");
+
+            RegisterPassiveEffect("JumpBoost", 5f, new[] { new Color(0.75f, 0.75f, 0.5f) }, new[] { ItemTag.Utility }, effect => (args, stacks, _) =>
+                args.jumpPowerMultAdd += effect.GetPassiveStrength(stacks), effect =>
+                $"Gain {effect.FormatPassiveStrengthPercentage("IsUtility")} <style=cIsUtility>jump height</style>.",
+                0, "NotMoving", "Midair");
+
+            RegisterPassiveEffect("MaxJumps", 0.5f, new[] { new Color(0.5f, 0.5f, 1.0f) }, new[] { ItemTag.Utility }, _ => NoEffectCallback, effect =>
+                (stat, value, stacks, _) => stat == "MaxJumpCount" ? value + (int)Math.Ceiling(effect.PassiveStrength) + ((int)Math.Ceiling(effect.PassiveStrength * effect.PassiveStackScaling)) * (stacks - 1) : value, effect =>
+                $"Gain <style=cIsUtility>{(int)Math.Ceiling(effect.PassiveStrength):+0;-#}</style>" + (effect.PassiveStackScaling > 0 ? $"<style=cStack>({(int)Math.Ceiling(effect.PassiveStrength * effect.PassiveStackScaling):+0;-#} per stack)</style>" : "") + " maximum <style=cIsUtility>jump count</style>.",
+                2, "NotMoving", "Midair");
 
             RegisterPassiveEffect("HealthBoost", 5f, new[] { new Color(0.5f, 1.0f, 0.5f) }, new[] { ItemTag.Healing }, effect => (args, stacks, _) =>
                 args.healthMultAdd += effect.GetPassiveStrength(stacks), effect =>
@@ -56,7 +66,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 $"Increase <style=cIsHealing>base health regeneration</style> by {effect.FormatPassiveStrengthPercentage("IsHealing")}.",
                 0, "HasShield", "HasBarrier", "AtFullHP");
 
-            RegisterPassiveEffect("CritChanceBoost", 8f, new[] { new Color(1.0f, 0.25f, 0.0f) }, new[] { ItemTag.Damage }, effect => (args, stacks, _) =>
+            RegisterPassiveEffect("CritChanceBoost", 5f, new[] { new Color(1.0f, 0.25f, 0.0f) }, new[] { ItemTag.Damage }, effect => (args, stacks, _) =>
                 args.critAdd += effect.GetPassiveStrength(stacks) * 100, effect =>
                 $"Gain {effect.FormatPassiveStrengthPercentage("IsDamage")} <style=cIsDamage>critical chance</style>.");
 
@@ -92,15 +102,16 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static PassiveEffect RegisterPassiveEffect(string name, float strengthModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, PassiveEffectCallback> passiveEffectCallbackProvider,
+        public static PassiveEffect? RegisterPassiveEffect(string name, float strengthModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, PassiveEffectCallback> passiveEffectCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade = 0, params string[] exclusiveConditions)
         {
             return RegisterPassiveEffect(name, strengthModifier, spriteColors, itemTags, passiveEffectCallbackProvider, _ => NoSpecialStatCallback, descriptionDelegate, minimumGrade, exclusiveConditions);
         }
 
-        public static PassiveEffect RegisterPassiveEffect(string name, float strengthModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, PassiveEffectCallback> passiveEffectCallbackProvider, Func<AbstractEffects, PassiveSpecialStatCallback> passiveSpecialStatCallbackProvider,
+        public static PassiveEffect? RegisterPassiveEffect(string name, float strengthModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, PassiveEffectCallback> passiveEffectCallbackProvider, Func<AbstractEffects, PassiveSpecialStatCallback> passiveSpecialStatCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade = 0, params string[] exclusiveConditions)
         {
+            if (!Main.RgiConfig.Bind("Passive Effect Toggles", name, true, $"Controls whether the passive effect '{name}' appears on randomly generated items.").Value) return null;
             PassiveEffect passiveEffect =
                 new(name, strengthModifier, spriteColors, itemTags, passiveEffectCallbackProvider, passiveSpecialStatCallbackProvider, descriptionDelegate, minimumGrade, exclusiveConditions);
             RegisteredPassiveEffects[name] = passiveEffect;

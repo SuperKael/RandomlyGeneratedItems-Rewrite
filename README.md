@@ -4,6 +4,19 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.0.6**
+* The config has been massively expanded with numerous toggles that allow you to control what can appear on randomly generated items.
+* Fix buffs given by randomly generated items not having icons.
+	* The 'no max barrier' buff is a yellow circle with a black border, and the 'bypass all restrictive conditions' buff is a cyan diamond with a black border.
+	* Buffs given by items that temporarily boost stats when triggered have the same icon as the item that grants the buff.
+* Fix randomly generated item pickups having solid collision.
+* Fix equipment items with passive effects on them having shorter cooldowns than ones that do not have passive effects. They now have longer cooldowns, instead of shorter ones.
+* Added boosts to jump height and max jumps to the pool of passive random effects.
+* Buffed the 'bypass all restrictive conditions' equipment effect heavily by doubling its duration and halving its cooldown.
+* Nerfed the amount of critical chance given by random items, so that it will be a bit harder to reach the point of being pinned at 100% critical chance.
+* Nerfed the 'immediately activate all triggered effects' equipment effect so that effects triggered by the equipment will be weaker than they normally would be.
+* Restore 'lore.txt' from the original Randomly Generated Items mod that was accidentally removed, which makes the item descriptions in the logbook marginally more interesting.
+
 **2.0.5**
 * Fix the "while midair" condition, which previously just did not work at all.
 * Fix the "reduce equipment cooldown" effect, which previously reduced special skill cooldown instead.

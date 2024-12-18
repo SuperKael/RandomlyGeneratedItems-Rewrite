@@ -43,7 +43,9 @@ namespace RandomlyGeneratedItems
 
             Rng = new Xoroshiro128Plus(seed);
             Logger.LogInfo("Seed is " + seed);
-            
+
+            NameSystem.Populate();
+
             ContentManager.collectContentPackProviders += addContentPackProvider => addContentPackProvider(ContentPackProvider = new RandomContentPackProvider());
         }
     }

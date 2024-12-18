@@ -55,7 +55,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 strengthModifier *= 4;
             }
             
-            bool hasPassiveEffect = Rng.nextBool;
+            bool hasPassiveEffect = Rng.nextBool && PassiveEffect.RegisteredPassiveEffects.Any(effect => effect.Value.MinimumGrade <= Grade); ;
 
             Chance = 100;
             ChanceStackScaling = 0;
@@ -66,7 +66,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             TriggeredStackScaling = 0;
 
             Equipment.cooldown = Rng.RangeFloat(4f, 8f) * TriggeredStrength;
-            if (hasPassiveEffect) Equipment.cooldown /= 2;
+            if (hasPassiveEffect) Equipment.cooldown *= 2;
 
             Color[] passiveColors = null;
             if (hasPassiveEffect)
@@ -86,12 +86,22 @@ namespace RandomlyGeneratedItems.RandomEffects
                 Description += "Passively " + char.ToLower(passiveDesc[0]) + passiveDesc[1..];
             }
 
-            EffectTriggerType effectTriggerType = EffectTriggerType.RegisteredTriggerTypes["Equipment"];
-            TriggerType = effectTriggerType.Name;
-            TriggeredStrength *= effectTriggerType.StrengthModifier;
+            bool triggerTypeRegistered;
+            if (EffectTriggerType.RegisteredTriggerTypes.TryGetValue("Equipment", out EffectTriggerType triggerType))
+            {
+                triggerTypeRegistered = true;
+                TriggerType = triggerType.Name;
+                TriggeredStrength *= triggerType.StrengthModifier;
+            }
+            else
+            {
+                triggerTypeRegistered = false;
+                TriggerType = "Equipment";
+                TriggeredStrength *= 4f;
+            }
 
             TriggeredEffect triggeredEffect;
-            bool equipmentExclusiveEffect = Rng.nextBool;
+            bool equipmentExclusiveEffect = (Rng.nextBool || !triggerTypeRegistered) && TriggeredEffect.RegisteredEquipmentEffects.Any(effect => effect.Value.MinimumGrade <= Grade);
             if (equipmentExclusiveEffect)
             {
                 do
@@ -101,6 +111,12 @@ namespace RandomlyGeneratedItems.RandomEffects
             }
             else
             {
+                if (!triggerTypeRegistered || !TriggeredEffect.RegisteredTriggeredEffects.Values.Any(effect => effect.MinimumGrade <= Grade && !effect.ExclusiveConditions.Contains("Equipment")))
+                {
+                    Description = "You disabled every possible triggered and equipment effect... what did you think would happen?";
+                    return SpriteShape.Circle;
+                }
+
                 do
                 {
                     triggeredEffect = TriggeredEffect.RegisteredTriggeredEffects[TriggerTypeMap[TriggerType][Rng.RangeInt(0, TriggerTypeMap[TriggerType].Count)]];
@@ -112,7 +128,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             Color[] triggeredColors = triggeredEffect.SpriteColors;
 
             OnTriggeredEffect += triggeredEffect.GetTriggeredEffectCallback(this);
-            string triggerDesc = effectTriggerType.DescriptionDelegate(this) + triggeredEffect.DescriptionDelegate(this);
+            string triggerDesc = "On use, " + triggeredEffect.DescriptionDelegate(this);
             if (hasPassiveEffect)
             {
                 if (Description.EndsWith(".")) Description = Description[..^1];

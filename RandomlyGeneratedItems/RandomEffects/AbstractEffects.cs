@@ -15,6 +15,8 @@ namespace RandomlyGeneratedItems.RandomEffects
         public static readonly Dictionary<string, AbstractEffects> RegisteredInactiveEffects = new();
         public static readonly Dictionary<string, List<string>> TriggerTypeMap = new();
 
+        public static event Func<CharacterBody, string, float, float> OnPassiveSpecialStatUpdated;
+
         public int Grade;
         public string TriggerType;
         public string Description;
@@ -35,6 +37,7 @@ namespace RandomlyGeneratedItems.RandomEffects
         public abstract Sprite Sprite { get; }
 
         public List<EffectCondition.ConditionCallback> Conditions = new();
+        public event Action OnFinalizeGeneration;
         public event PassiveEffect.PassiveEffectCallback OnPassiveEffect;
         public event PassiveEffect.PassiveSpecialStatCallback OnPassiveSpecialStat;
         public event TriggeredEffect.TriggeredEffectCallback OnTriggeredEffect;
@@ -99,6 +102,11 @@ namespace RandomlyGeneratedItems.RandomEffects
         public static void ApplyPassiveSpecialStat(CharacterBody character, string stat, ref float value)
         {
             if (!character || !character.inventory) return;
+
+            if (OnPassiveSpecialStatUpdated != null)
+            {
+                value = OnPassiveSpecialStatUpdated.GetInvocationList().Aggregate(value, (current, handler) => (float)handler.DynamicInvoke(character, stat, current));
+            }
 
             foreach (ItemIndex index in character.inventory.itemAcquisitionOrder)
             {
@@ -241,13 +249,14 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public void Register()
         {
+            OnFinalizeGeneration?.Invoke();
             RegisteredEffects[Name] = this;
             if (HasInactiveForm) RegisteredInactiveEffects[Name + "_INACTIVE"] = this;
         }
 
         public bool ConditionsMet(CharacterBody body)
         {
-            return body.HasBuff(Buffs.BypassEffectConditions.BuffDef) || Conditions.All(condition => condition(body));
+            return Buffs.BypassEffectConditions.BuffDef != null && body.HasBuff(Buffs.BypassEffectConditions.BuffDef) || Conditions.All(condition => condition(body));
         }
 
         public abstract int GetStackCount(CharacterBody body);

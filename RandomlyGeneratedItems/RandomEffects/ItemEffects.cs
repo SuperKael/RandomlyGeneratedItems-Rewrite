@@ -5,6 +5,7 @@ using HarmonyLib;
 using RoR2;
 using UnityEngine;
 using UnityEngine.TextCore;
+using static RoR2.MapZone;
 
 namespace RandomlyGeneratedItems.RandomEffects
 {
@@ -77,22 +78,22 @@ namespace RandomlyGeneratedItems.RandomEffects
                     stackScalingModifier = 0.25f;
                     break;
                 case ItemTier.VoidTier1:
-                    Grade = 1;
+                    Grade = 2;
                     strengthModifier = 1.5f;
                     stackScalingModifier = 1f;
                     break;
                 case ItemTier.VoidTier2:
-                    Grade = 2;
+                    Grade = 3;
                     strengthModifier = 2f;
                     stackScalingModifier = 0.75f;
                     break;
                 case ItemTier.VoidTier3:
-                    Grade = 3;
+                    Grade = 4;
                     strengthModifier = 8f;
                     stackScalingModifier = 0.75f;
                     break;
                 case ItemTier.VoidBoss:
-                    Grade = 4;
+                    Grade = 5;
                     strengthModifier = 4f;
                     stackScalingModifier = 0.5f;
                     break;
@@ -112,6 +113,9 @@ namespace RandomlyGeneratedItems.RandomEffects
             // More than one condition, as many as four, is possible, but reaching that many would be highly improbable (1/256 chance)
             while (conditionCount < 4 && Rng.RangeFloat(0f, 1f) < 0.25f) conditionCount++;
 
+            if (conditionCount > EffectCondition.RegisteredConditions.Count)
+                conditionCount = EffectCondition.RegisteredConditions.Count;
+
             bool hasPassiveEffect = Rng.nextBool;
             bool hasTriggeredEffect = !hasPassiveEffect || Rng.nextBool;
 
@@ -119,6 +123,14 @@ namespace RandomlyGeneratedItems.RandomEffects
 
             for (int i = 0; i < conditionCount; i++)
             {
+                if (EffectCondition.RegisteredConditions.Values.All(effectCondition =>
+                        effectCondition.MinimumGrade > Grade ||
+                        conditions.Any(existingCondition => effectCondition.Name == existingCondition.Name ||
+                                                            effectCondition.ExclusiveConditions.Contains(
+                                                                existingCondition.Name) ||
+                                                            existingCondition.ExclusiveConditions.Contains(
+                                                                effectCondition.Name)))) break;
+
                 EffectCondition effectCondition;
                 do
                 {
@@ -127,6 +139,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                          conditions.Any(existingCondition => effectCondition.Name == existingCondition.Name || 
                                                              effectCondition.ExclusiveConditions.Contains(existingCondition.Name) ||
                                                              existingCondition.ExclusiveConditions.Contains(effectCondition.Name)));
+
                 conditions.Add(effectCondition);
 
                 strengthModifier *= effectCondition.StrengthModifier;
@@ -138,6 +151,26 @@ namespace RandomlyGeneratedItems.RandomEffects
                     conditionDesc = char.ToLower(conditionDesc[0]) + conditionDesc[1..];
                 }
                 Description += conditionDesc;
+            }
+
+            bool noPassiveEffects = false;
+            if (!PassiveEffect.RegisteredPassiveEffects.Values.Any(effect =>
+                    effect.MinimumGrade <= Grade &&
+                    conditions.All(condition => !effect.ExclusiveConditions.Contains(condition.Name))))
+            {
+                noPassiveEffects = true;
+                hasPassiveEffect = false;
+                hasTriggeredEffect = true;
+            }
+            
+            if (!EffectTriggerType.RegisteredTriggerTypes.Values.Any(triggerType => 
+                    conditions.All(typeCondition => !triggerType.ExclusiveConditions.Contains(typeCondition.Name) && 
+                                                    TriggerTypeMap.TryGetValue(triggerType.Name, out List<string> typeList) && 
+                                                    TriggeredEffect.RegisteredTriggeredEffects.Values.Any(effect => 
+                                                        conditions.All(effectCondition => typeList.Contains(effect.Name) && effect.MinimumGrade <= Grade && !effect.ExclusiveConditions.Contains(effectCondition.Name))))))
+            {
+                hasTriggeredEffect = false;
+                if (!noPassiveEffects) hasPassiveEffect = true;
             }
 
             Chance = Rng.RangeFloat(10f, 20f) * strengthModifier;
@@ -182,6 +215,11 @@ namespace RandomlyGeneratedItems.RandomEffects
                 }
                 Description += passiveDesc;
             }
+            else if (!hasTriggeredEffect)
+            {
+                Description = "You disabled every possible passive and triggered effect... what did you think would happen?";
+                return SpriteShape.Circle;
+            }
 
             if (!hasTriggeredEffect)
             {
@@ -189,7 +227,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 Array.Copy(passiveColors, 0, SpriteColors, 0, passiveColors.Length);
                 return SpriteShape.Square;
             }
-            
+
             EffectTriggerType effectTriggerType;
             do
             {

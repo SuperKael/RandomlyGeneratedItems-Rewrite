@@ -19,12 +19,10 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public static IEnumerator Initialize()
         {
-            RegisterEffectStatus("Bleed", 1f, false, ProcType.BleedOnHit,
-                (character, effects, target, stackCount, procCoefficient, procChainMask, args) =>
+            RegisterEffectStatus("Bleed", 5f, false, ProcType.BleedOnHit,
+                (character, _, target, _, duration, _, _, args) =>
                 {
                     DamageInfo damageInfo = args["damageInfo"] as DamageInfo;
-                    effects.ExtraText["DOTIsTotalDamage"] = damageInfo != null ? "TOTAL" : "base";
-                    float duration = Mathf.Pow(effects.TriggeredStrength, 2f / 3f) * (1 + effects.TriggeredStackScaling * (stackCount - 1)) * procCoefficient;
                     InflictDotInfo dotInfo = new()
                     {
                         victimObject = target.gameObject,
@@ -35,15 +33,16 @@ namespace RandomlyGeneratedItems.RandomEffects
                     };
 
                     DotController.InflictDot(ref dotInfo);
-                }, effects => $"<style=cDeath>Bleed</style> for {effects.FormatTriggeredStrengthPercentage("IsDamage")} {effects.ExtraText["DOTIsTotalDamage"]} damage");
+                }, effects => $"<style=cDeath>bleed</style> for {effects.FormatTriggeredStrengthPercentage("IsDamage")} damage");
 
             yield break;
         }
 
-        public static EffectStatus RegisterEffectStatus(string name, float strengthModifier, bool isPositive,
+        public static EffectStatus? RegisterEffectStatus(string name, float strengthModifier, bool isPositive,
             ProcType procType, StatusApplyDelegate applyDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate,
             int minimumGrade = 0)
         {
+            if (!Main.RgiConfig.Bind("Status Effect Toggles", name, true, $"Controls whether the status effect '{name}' can be applied by randomly generated items.").Value) return null;
             EffectStatus effectStatus = new(name, strengthModifier, isPositive,
                 procType, applyDelegate, descriptionDelegate, minimumGrade);
             RegisteredEffectStatuses[name] = effectStatus;
@@ -62,12 +61,12 @@ namespace RandomlyGeneratedItems.RandomEffects
         }
 
         public void ApplyEffect(CharacterBody character, AbstractEffects effects,
-            CharacterBody target, int stackCount, float procCoefficient, ProcChainMask procChainMask, Dictionary<string, object> args)
+            CharacterBody target, int stackCount, float duration, float procCoefficient, ProcChainMask procChainMask, Dictionary<string, object> args)
         {
-            ApplyDelegate(character, effects, target, stackCount, procCoefficient, procChainMask, args);
+            ApplyDelegate(character, effects, target, stackCount, duration, procCoefficient, procChainMask, args);
         }
 
         public delegate void StatusApplyDelegate(CharacterBody character, AbstractEffects effects,
-            CharacterBody target, int stackCount, float procCoefficient, ProcChainMask procChainMask, Dictionary<string, object> args);
+            CharacterBody target, int stackCount, float duration, float procCoefficient, ProcChainMask procChainMask, Dictionary<string, object> args);
     }
 }

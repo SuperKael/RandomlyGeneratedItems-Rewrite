@@ -41,8 +41,8 @@ namespace RandomlyGeneratedItems.RandomEffects
             RegisterInteractableSpawnCard("CombatShrine", 1f, 1f, _ => "a <style=cWorldEvent>Shrine of Combat</style>", "RoR2/Base/ShrineCombat/iscShrineCombat.asset");
             RegisterInteractableSpawnCard("HealingShrine", 2f, 4f, _ => "a <style=cIsHealing>Shrine of the Woods</style>", "RoR2/Base/ShrineHealing/iscShrineHealing.asset");
             RegisterInteractableSpawnCard("CommonMultishop", 4f, 3f, _ => "a <style=cIsDamage>Common Multishop</style>", "RoR2/Base/TripleShop/iscTripleShop.asset");
-            RegisterInteractableSpawnCard("UncommonMultishop", 4f, 6f, _ => "an <style=cIsHealing>Uncommon Multishop</style>", "RoR2/Base/TripleShopEquipment/iscTripleShopEquipment.asset");
-            RegisterInteractableSpawnCard("EquipmentMultishop", 2f, 3f, _ => "an <style=cIsHealth>Equipment Multishop</style>", "RoR2/Base/TripleShopLarge/iscTripleShopLarge.asset");
+            RegisterInteractableSpawnCard("UncommonMultishop", 4f, 6f, _ => "an <style=cIsHealing>Uncommon Multishop</style>", "RoR2/Base/TripleShopLarge/iscTripleShopLarge.asset");
+            RegisterInteractableSpawnCard("EquipmentMultishop", 2f, 3f, _ => "an <style=cIsHealth>Equipment Multishop</style>", "RoR2/Base/TripleShopEquipment/iscTripleShopEquipment.asset");
 
             RegisterInteractableSpawnCard("LargeDamageChest", 4f, 4f, _ => "a <style=cIsHealing>Large Damage Chest</style>", "RoR2/DLC1/CategoryChest2/iscCategoryChest2Damage.asset");
             RegisterInteractableSpawnCard("LargeHealingChest", 4f, 4f, _ => "a <style=cIsHealing>Large Healing Chest</style>", "RoR2/DLC1/CategoryChest2/iscCategoryChest2Healing.asset");
@@ -55,7 +55,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static (SpawnableInteractable spawnableEffectPayload, InteractableSpawnCard spawnCard) RegisterInteractableSpawnCard(string name, float costModifier, float cooldownModifier, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
+        public static (SpawnableInteractable? spawnableEffectPayload, InteractableSpawnCard spawnCard) RegisterInteractableSpawnCard(string name, float costModifier, float cooldownModifier, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
         {
             InteractableSpawnCard spawnCard = Addressables.LoadAssetAsync<InteractableSpawnCard>(key).WaitForCompletion();
             return (RegisterInteractableSpawnDelegate(name, costModifier, cooldownModifier,
@@ -76,16 +76,18 @@ namespace RandomlyGeneratedItems.RandomEffects
                         foreach (PurchaseInteraction purchaseInteraction in
                                  interactableObject.GetComponentsInChildren<PurchaseInteraction>())
                         {
-                            purchaseInteraction.cost = Mathf.RoundToInt(purchaseInteraction.cost * costModifier);
+                            int modifiedCost = Mathf.RoundToInt(purchaseInteraction.cost * costModifier);
+                            purchaseInteraction.cost = purchaseInteraction.costType == CostTypeIndex.Money ? Run.instance.GetDifficultyScaledCost(modifiedCost) : modifiedCost;
                         }
                     }
                 }, descriptionDelegate, minimumGrade), spawnCard);
         }
 
-        public static SpawnableInteractable RegisterInteractableSpawnDelegate(string name, float costModifier, float cooldownModifier,
+        public static SpawnableInteractable? RegisterInteractableSpawnDelegate(string name, float costModifier, float cooldownModifier,
             InteractableSpawnDelegate spawnDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate,
             int minimumGrade = 0)
         {
+            if (!Main.RgiConfig.Bind("Spawnable Interactable Toggles", name, true, $"Controls whether the interactable '{name}' can be spawned by randomly generated items.").Value) return null;
             SpawnableInteractable spawnableEffectPayload = new(name, costModifier, cooldownModifier, spawnDelegate
                 , descriptionDelegate, minimumGrade);
             RegisteredInteractables[name] = spawnableEffectPayload;

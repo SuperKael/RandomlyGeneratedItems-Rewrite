@@ -42,15 +42,16 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static EffectCondition RegisterCondition(string name, float strengthModifier, AbstractEffects.DescriptionDelegate descriptionDelegate,
+        public static EffectCondition? RegisterCondition(string name, float strengthModifier, AbstractEffects.DescriptionDelegate descriptionDelegate,
             Func<AbstractEffects, ConditionCallback> conditionCallbackProvider, params string[] exclusiveConditions)
         {
             return RegisterCondition(name, strengthModifier, descriptionDelegate, conditionCallbackProvider, 0,
                 exclusiveConditions);
         }
 
-        public static EffectCondition RegisterCondition(string name, float strengthModifier, AbstractEffects.DescriptionDelegate descriptionDelegate, Func<AbstractEffects, ConditionCallback> conditionCallbackProvider, int minimumGrade, params string[] exclusiveConditions)
+        public static EffectCondition? RegisterCondition(string name, float strengthModifier, AbstractEffects.DescriptionDelegate descriptionDelegate, Func<AbstractEffects, ConditionCallback> conditionCallbackProvider, int minimumGrade, params string[] exclusiveConditions)
         {
+            if (!Main.RgiConfig.Bind("Restrictive Condition Toggles", name, true, $"Controls whether the restrictive condition '{name}' can appear on randomly generated items.").Value) return null;
             EffectCondition effectCondition = new(name, strengthModifier, descriptionDelegate, conditionCallbackProvider, minimumGrade, exclusiveConditions);
             RegisteredConditions[name] = effectCondition;
             return effectCondition;

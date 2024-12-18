@@ -153,7 +153,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static (SpawnableEffectPayload spawnableEffectPayload, GameObject prefab) RegisterProjectilePrefab(string name, float strengthModifier, float cooldownModifier, ProcType procType, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
+        public static (SpawnableEffectPayload? spawnableEffectPayload, GameObject prefab) RegisterProjectilePrefab(string name, float strengthModifier, float cooldownModifier, ProcType procType, AbstractEffects.DescriptionDelegate descriptionDelegate, string key, int minimumGrade = 0)
         {
             GameObject prefab = Addressables.LoadAssetAsync<GameObject>(key).WaitForCompletion().InstantiateClone(name);
             return (RegisterPayloadSpawnDelegate(name, strengthModifier, cooldownModifier, procType,
@@ -176,10 +176,11 @@ namespace RandomlyGeneratedItems.RandomEffects
                     }, descriptionDelegate, minimumGrade), prefab);
         }
 
-        public static SpawnableEffectPayload RegisterPayloadSpawnDelegate(string name, float strengthModifier, float cooldownModifier, ProcType procType,
+        public static SpawnableEffectPayload? RegisterPayloadSpawnDelegate(string name, float strengthModifier, float cooldownModifier, ProcType procType,
             PayloadSpawnDelegate spawnDelegate, AbstractEffects.DescriptionDelegate descriptionDelegate,
             int minimumGrade = 0)
         {
+            if (!Main.RgiConfig.Bind("Spawnable Payload Toggles", name, true, $"Controls whether the Effect Payload '{name}' can be spawned by randomly generated items.").Value) return null;
             SpawnableEffectPayload spawnableEffectPayload = new(name, strengthModifier, cooldownModifier, procType, spawnDelegate
                 , descriptionDelegate, minimumGrade);
             RegisteredEffectPrefabs[name] = spawnableEffectPayload;

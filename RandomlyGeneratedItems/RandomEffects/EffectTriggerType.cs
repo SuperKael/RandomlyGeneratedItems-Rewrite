@@ -47,9 +47,10 @@ namespace RandomlyGeneratedItems.RandomEffects
             yield break;
         }
 
-        public static EffectTriggerType RegisterTriggerType(string name, float strengthModifier,
+        public static EffectTriggerType? RegisterTriggerType(string name, float strengthModifier,
             AbstractEffects.DescriptionDelegate descriptionDelegate, params string[] exclusiveConditions)
         {
+            if (!Main.RgiConfig.Bind("Trigger Type Toggles", name, true, $"Controls whether the trigger type '{name}' appears on randomly generated items.").Value) return null;
             EffectTriggerType effectTriggerType = new(name, strengthModifier, descriptionDelegate, exclusiveConditions);
             RegisteredTriggerTypes[name] = effectTriggerType;
             AbstractEffects.TriggerTypeMap[name] = new List<string>();

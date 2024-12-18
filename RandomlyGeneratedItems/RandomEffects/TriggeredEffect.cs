@@ -7,6 +7,7 @@ using R2API;
 using RoR2;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.TextCore;
 
 namespace RandomlyGeneratedItems.RandomEffects
 {
@@ -36,11 +37,22 @@ namespace RandomlyGeneratedItems.RandomEffects
                 BuffDef buff = ScriptableObject.CreateInstance<BuffDef>();
                 buff.name = "BUFF_PASSIVE_" + effect.Name;
                 buff.canStack = effect is not EquipmentEffects && effect.Rng.nextBool;
+                buff.isHidden = false;
                 buff.isDebuff = false;
-                buff.iconSprite = effect.Sprite;
+                effect.OnFinalizeGeneration += () =>
+                {
+                    buff.iconSprite = effect.Sprite;
+                };
                 Buffs.RegisteredBuffs.Add(buff);
                 if (buff.canStack) effect.TriggeredStrength /= 5;
                 effect.ExtraText["BuffCanStack"] = buff.canStack ? ", and the effect <style=cIsDamage>can stack multiple times</style>." : ". This effect does <style=cDeath>not</style> stack.";
+
+                if (!PassiveEffect.RegisteredPassiveEffects.Values.Any(passiveEffect => 
+                        passiveEffect.MinimumGrade <= effect.Grade && (!passiveEffect.ExclusiveConditions.Contains("IsEquipment") || effect is not EquipmentEffects)))
+                {
+                    effect.ExtraText["PassiveEffectBuff"] = "Gain nothing, because you disabled too many effect passive effects.";
+                    return (_, _, _, _, _) => { };
+                }
 
                 PassiveEffect passiveEffect;
                 do
@@ -67,6 +79,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 }
 
                 PassiveEffect.PassiveEffectCallback passiveEffectCallback = passiveEffect.GetPassiveEffectCallback(effect);
+                PassiveEffect.PassiveSpecialStatCallback passiveSpecialStatCallback = passiveEffect.GetPassiveSpecialStatCallback(effect);
 
                 RecalculateStatsAPI.GetStatCoefficients += (sender, args) =>
                 {
@@ -89,16 +102,45 @@ namespace RandomlyGeneratedItems.RandomEffects
                     }
                 };
 
+                AbstractEffects.OnPassiveSpecialStatUpdated += (sender, stat, value) =>
+                {
+                    if (!sender || !sender.inventory || !NetworkServer.active || !sender.HasBuff(buff)) return value;
+                    int stackCount = effect.GetStackCount(sender);
+                    int buffCount = sender.GetBuffCount(buff);
+
+                    passiveStrenthTemp = effect.PassiveStrength;
+                    passiveStackScalingTemp = effect.PassiveStackScaling;
+                    try
+                    {
+                        effect.PassiveStrength = effect.TriggeredStrength * passiveEffect.StrengthModifier * buffCount;
+                        effect.PassiveStackScaling = effect.TriggeredStackScaling;
+                        value = passiveSpecialStatCallback(stat, value, stackCount, sender);
+                    }
+                    finally
+                    {
+                        effect.PassiveStrength = passiveStrenthTemp;
+                        effect.PassiveStackScaling = passiveStackScalingTemp;
+                    }
+
+                    return value;
+                };
+
                 return (character, stacks, procCoefficient, _, _) =>
                 {
                     character.AddTimedBuff(buff, Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * (1 + effect.TriggeredStackScaling * (stacks - 1)) * procCoefficient);
                 };
             }, effect =>
                     $"temporarily {char.ToLower(effect.ExtraText["PassiveEffectBuff"][0]) + effect.ExtraText["PassiveEffectBuff"][1..]} Effect lasts for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>{(effect.TriggeredStackScaling > 0 ? $" <style=cStack>(+{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * effect.TriggeredStackScaling:0.#} per stack)</style>" : "")}{effect.ExtraText["BuffCanStack"]}"
-            , 2).BindTriggerTypes(allTriggerTypes);
+            , 2)?.BindTriggerTypes(allTriggerTypes);
 
             RegisterTriggeredEffect("FireEffectPayload", 50f, 1f, new[] { new Color(1.0f, 0.5f, 0.0f) }, new[] { ItemTag.Damage }, effect =>
             {
+                if (!SpawnableEffectPayload.RegisteredEffectPrefabs.Values.Any(effectPrefab => effectPrefab.MinimumGrade <= effect.Grade))
+                {
+                    effect.ExtraText["SpawnedEffectPayload"] = "nothing, because you disabled too many effect payloads,";
+                    return (_, _, _, _, _) => { };
+                }
+
                 SpawnableEffectPayload spawnableEffectPayload;
                 do
                 {
@@ -120,10 +162,16 @@ namespace RandomlyGeneratedItems.RandomEffects
                 };
             }, effect =>
                     $"fire a {effect.ExtraText["FiredEffectPayload"]} for {effect.FormatTriggeredStrengthPercentage("IsDamage")} <style=cIsDamage>base damage</style>."
-            ).BindTriggerTypes(allTriggerTypes);
+            )?.BindTriggerTypes(allTriggerTypes);
 
             RegisterTriggeredEffect("SpawnEffectPayload", 25f, 1f, new[] { new Color(1.0f, 0.75f, 0.0f) }, new[] { ItemTag.Damage }, effect =>
             {
+                if (!SpawnableEffectPayload.RegisteredEffectPrefabs.Values.Any(effectPrefab => effectPrefab.MinimumGrade <= effect.Grade))
+                {
+                    effect.ExtraText["SpawnedEffectPayload"] = "nothing, because you disabled too many effect payloads,";
+                    return (_, _, _, _, _) => { };
+                }
+
                 SpawnableEffectPayload spawnableEffectPayload;
                 do
                 {
@@ -148,33 +196,37 @@ namespace RandomlyGeneratedItems.RandomEffects
                 };
             }, effect =>
                 $"spawn a {effect.ExtraText["SpawnedEffectPayload"]} for {effect.FormatTriggeredStrengthPercentage("IsDamage")} <style=cIsDamage>base damage</style>."
-            ).BindTriggerTypes(attackTriggerTypes);
+            )?.BindTriggerTypes(attackTriggerTypes);
 
-            RegisterTriggeredEffect("ApplyBleed", 1f, 1f, new[] { Color.red }, new[] { ItemTag.Damage }, effect =>
+            RegisterTriggeredEffect("InflictStatus", 1f, 1f, new[] { Color.red }, new[] { ItemTag.Damage }, effect =>
             {
-                effect.ProcType = ProcType.BleedOnHit;
+                IEnumerable<EffectStatus> validStatuses =
+                    EffectStatus.RegisteredEffectStatuses.Values.Where(status => !status.IsPositive);
 
-                return (_, stacks, procCoefficient, _, args) =>
+                EffectStatus[] effectStatusEnumerable = validStatuses.ToArray();
+                if (!effectStatusEnumerable.Any())
+                {
+                    effect.ExtraText["StatusDescription"] = "nothing, because you disabled all of the negative status effects";
+                    return (_, _, _, _, _) => { };
+                }
+
+                EffectStatus status = effectStatusEnumerable.ToList()[effect.Rng.RangeInt(0, effectStatusEnumerable.Length)];
+                effect.ExtraText["StatusDescription"] = status.DescriptionDelegate(effect);
+                effect.TriggeredStrength *= status.StrengthModifier;
+                effect.ProcType = status.ProcType;
+
+                return (_, stacks, procCoefficient, procChainMask, args) =>
                 {
                     DamageReport report = args.TryGetValue("damageReport", out object reportObj) ? reportObj as DamageReport : null;
                     if (report == null) return;
 
                     float duration = Mathf.Pow(effect.TriggeredStrength, 2f / 3f) *
                                      (1 + effect.TriggeredStackScaling * (stacks - 1)) * procCoefficient;
-                    InflictDotInfo dotInfo = new()
-                    {
-                        victimObject = report.victim.gameObject,
-                        attackerObject = report.attacker.gameObject,
-                        dotIndex = DotController.DotIndex.Bleed,
-                        duration = duration,
-                        totalDamage = report.damageInfo.damage,
-                    };
-
-                    DotController.InflictDot(ref dotInfo);
+                    status.ApplyEffect(report.attackerBody, effect, report.victimBody, stacks, duration, procCoefficient, procChainMask, args);
                 };
             }, effect =>
-                            $"<style=cDeath>bleed</style> the target for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>{(effect.TriggeredStackScaling > 0 ? $" <style=cStack>(+{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * effect.TriggeredStackScaling:0.#} per stack)</style>" : "")}."
-            ).BindTriggerTypes(attackTriggerTypes);
+                            $"inflict {effect.ExtraText["StatusDescription"]}, lasting <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>{(effect.TriggeredStackScaling > 0 ? $" <style=cStack>(+{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * effect.TriggeredStackScaling:0.#} per stack)</style>" : "")}."
+            )?.BindTriggerTypes(attackTriggerTypes);
 
             RegisterTriggeredEffect("Heal", 1f, 1f, new[] { Color.green }, new[] { ItemTag.Healing }, effect =>
             {
@@ -188,13 +240,13 @@ namespace RandomlyGeneratedItems.RandomEffects
                 };
             }, effect =>
                             $"receive <style=cIsHealing>healing</style> equal to {effect.FormatTriggeredStrengthPercentage("IsHealing")} of your maximum <style=cIsHealing>health</style>."
-            , "AtFullHP", "HasShield").BindTriggerTypes(allTriggerTypes);
+            , "AtFullHP", "HasShield")?.BindTriggerTypes(allTriggerTypes);
 
             RegisterTriggeredEffect("Barrier", 3f, 1f, new[] { Color.yellow }, new[] { ItemTag.Healing }, effect =>
             {
-                bool noMax = effect.Rng.nextNormalizedFloat * 30 < effect.TriggeredStrength;
+                bool noMax = Buffs.NoMaxBarrier.BuffDef != null && effect.Rng.nextNormalizedFloat * 30 < effect.TriggeredStrength;
                 if (noMax) effect.TriggeredStrength /= 3;
-                effect.ExtraText["NoMaxBarrierText"] = noMax ? " Remove the maximum <style=cIsHealing>barrier</style> cap for 10 seconds." : "";
+                effect.ExtraText["NoMaxBarrierText"] = noMax ? " and remove the maximum <style=cIsHealing>barrier</style> cap for 10 seconds." : ".";
                 return (character, stacks, procCoefficient, _, _) =>
                 {
                     if (noMax)
@@ -207,11 +259,18 @@ namespace RandomlyGeneratedItems.RandomEffects
                                                          effect.GetTriggeredStrength(stacks, procCoefficient));
                 };
             }, effect =>
-                            $"receive <style=cIsHealing>barrier</style> equal to {effect.FormatTriggeredStrengthPercentage("IsHealing")} of your maximum <style=cIsHealing>health</style>.{effect.ExtraText["NoMaxBarrierText"]}"
-            ).BindTriggerTypes(allTriggerTypes);
+                            $"receive <style=cIsHealing>barrier</style> equal to {effect.FormatTriggeredStrengthPercentage("IsHealing")} of your maximum <style=cIsHealing>health</style>{effect.ExtraText["NoMaxBarrierText"]}"
+            )?.BindTriggerTypes(allTriggerTypes);
 
             RegisterEquipmentEffect("SpawnInteractable", 1f, 2f, new[] { Color.magenta }, effect =>
             {
+                if (!SpawnableInteractable.RegisteredInteractables.Values.Any(interactablePrefab => interactablePrefab.MinimumGrade <= effect.Grade))
+                {
+                    effect.ExtraText["SpawnedInteractable"] = "nothing, because you disabled too many interactables";
+                    effect.ExtraText["InteractableCost"] = "";
+                    return (_, _) => { };
+                }
+
                 SpawnableInteractable spawnableInteractable;
                 do
                 {
@@ -237,7 +296,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                 }
                 effect.Equipment.cooldown *= spawnableInteractable.CooldownModifier;
 
-                return character =>
+                return (character, _) =>
                 {
                     spawnableInteractable.SpawnInteractable(character, effect, Util.GetCorePosition(character));
                 };
@@ -245,66 +304,68 @@ namespace RandomlyGeneratedItems.RandomEffects
                     $"spawn {effect.ExtraText["SpawnedInteractable"]}.{effect.ExtraText["InteractableCost"]}"
             );
 
-            RegisterEquipmentEffect("BypassConditions", 1f, 4f, new[] { Color.cyan }, effect =>
+            RegisterEquipmentEffect("BypassConditions", 1f, 2f, new[] { Color.cyan }, effect =>
             {
-                return character =>
+                return (character, _) =>
                 {
-                    character.AddTimedBuff(Buffs.BypassEffectConditions.BuffDef, Mathf.Pow(effect.TriggeredStrength, 2f / 3f));
+                    character.AddTimedBuff(Buffs.BypassEffectConditions.BuffDef, Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * 2);
                 };
             }, effect =>
-                    $"bypass <style=cShrine>ALL</style> restrictive conditions on <style=cArtifact>Randomly Generated Items</style> for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f):0.#} seconds</style>."
+                    $"bypass <style=cShrine>ALL</style> restrictive conditions on <style=cArtifact>Randomly Generated Items</style> for <style=cIsUtility>{Mathf.Pow(effect.TriggeredStrength, 2f / 3f) * 2:0.#} seconds</style>."
             );
 
-            RegisterEquipmentEffect("TriggerAll", 1f, 2f, new[] { Color.white }, _ =>
+            RegisterEquipmentEffect("ForceTriggerAll", 3.125f, 2f, new[] { Color.white }, effect =>
             {
-                return character =>
+                return (character, args) =>
                 {
+                    if (args.ContainsKey("forceTrigger")) return;
                     foreach (string triggerType in EffectTriggerType.RegisteredTriggerTypes.Keys)
                     {
-                        if (triggerType == "Equipment") continue;
-                        AbstractEffects.TriggerEffects(triggerType, character, new Dictionary<string, object>()
+                        AbstractEffects.TriggerEffects(triggerType, character, effect.TriggeredStrength / 100, null, new Dictionary<string, object>()
                         {
                             ["forceTrigger"] = true
                         });
                     }
                 };
-            }, _ =>
-                    "immediately activate the triggered effects of <style=cShrine>ALL</style> of your <style=cArtifact>Randomly Generated Items</style>. <style=cStack>(Does not apply to items that only apply their effects to a hit target)</style>"
+            }, effect =>
+                    $"immediately activate the triggered effects of <style=cShrine>ALL</style> of your <style=cArtifact>Randomly Generated Items</style> at {effect.FormatTriggeredStrengthPercentage("IsUtility")} of their normal strength. <style=cStack>(Does not apply to items that only apply their effects to a hit target)</style>"
             );
 
             yield break;
         }
 
-        public static TriggeredEffect RegisterTriggeredEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, TriggeredEffectCallback> triggeredEffectCallbackProvider,
+        public static TriggeredEffect? RegisterTriggeredEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, TriggeredEffectCallback> triggeredEffectCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, params string[] exclusiveConditions)
         {
             return RegisterTriggeredEffect(name, strengthModifier, cooldownModifier, spriteColors, itemTags, triggeredEffectCallbackProvider,
                 descriptionDelegate, 0, exclusiveConditions);
         }
 
-        public static TriggeredEffect RegisterTriggeredEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, TriggeredEffectCallback> triggeredEffectCallbackProvider,
+        public static TriggeredEffect? RegisterTriggeredEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, ItemTag[] itemTags, Func<AbstractEffects, TriggeredEffectCallback> triggeredEffectCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade, params string[] exclusiveConditions)
         {
+            if (!Main.RgiConfig.Bind("Triggered Effect Toggles", name, true, $"Controls whether the triggered effect '{name}' appears on randomly generated items.").Value) return null;
             TriggeredEffect triggeredEffect =
                 new(name, strengthModifier, cooldownModifier, spriteColors, itemTags, triggeredEffectCallbackProvider, descriptionDelegate, minimumGrade, exclusiveConditions);
             RegisteredTriggeredEffects[name] = triggeredEffect;
             return triggeredEffect;
         }
 
-        public static TriggeredEffect RegisterEquipmentEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, Func<EquipmentEffects, EquipmentEffectCallback> equipmentEffectCallbackProvider,
+        public static TriggeredEffect? RegisterEquipmentEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, Func<EquipmentEffects, EquipmentEffectCallback> equipmentEffectCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, params string[] exclusiveConditions)
         {
             return RegisterEquipmentEffect(name, strengthModifier, cooldownModifier, spriteColors, equipmentEffectCallbackProvider,
                 descriptionDelegate, 0, exclusiveConditions);
         }
 
-        public static TriggeredEffect RegisterEquipmentEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, Func<EquipmentEffects, EquipmentEffectCallback> equipmentEffectCallbackProvider,
+        public static TriggeredEffect? RegisterEquipmentEffect(string name, float strengthModifier, float cooldownModifier, Color[] spriteColors, Func<EquipmentEffects, EquipmentEffectCallback> equipmentEffectCallbackProvider,
             AbstractEffects.DescriptionDelegate descriptionDelegate, int minimumGrade, params string[] exclusiveConditions)
         {
+            if (!Main.RgiConfig.Bind("Equipment Effect Toggles", name, true, $"Controls whether the triggered effect '{name}' appears on randomly generated equipment.").Value) return null;
             TriggeredEffect triggeredEffect = new(name, strengthModifier, cooldownModifier, spriteColors, Array.Empty<ItemTag>(), effect =>
                 {
                     EquipmentEffectCallback effectCallback = equipmentEffectCallbackProvider(effect as EquipmentEffects);
-                    return (character, _, _, _, _) => effectCallback(character);
+                    return (character, _, _, _, args) => effectCallback(character, args);
                 }, descriptionDelegate, minimumGrade, exclusiveConditions);
             RegisteredEquipmentEffects[name] = triggeredEffect;
             return triggeredEffect;
@@ -325,7 +386,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public TriggeredEffect BindTriggerTypes(params string[] triggerTypes)
         {
-            foreach (string triggerType in triggerTypes) AbstractEffects.TriggerTypeMap[triggerType].Add(Name);
+            foreach (string triggerType in triggerTypes) if (AbstractEffects.TriggerTypeMap.TryGetValue(triggerType, out List<string> typeList)) typeList.Add(Name);
             return this;
         }
 
@@ -337,6 +398,6 @@ namespace RandomlyGeneratedItems.RandomEffects
         public delegate void TriggeredEffectCallback(CharacterBody character, int stackCount, float procCoefficient,
             ProcChainMask procChainMask, Dictionary<string, object> args);
 
-        public delegate void EquipmentEffectCallback(CharacterBody character);
+        public delegate void EquipmentEffectCallback(CharacterBody character, Dictionary<string, object> args);
     }
 }

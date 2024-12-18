@@ -5,6 +5,7 @@ using RoR2;
 using RoR2.ContentManagement;
 using UnityEngine;
 using UnityEngine.Networking;
+using static Mono.Security.X509.X520;
 
 namespace RandomlyGeneratedItems
 {
@@ -28,10 +29,14 @@ namespace RandomlyGeneratedItems
 
             public static void Register()
             {
+                if (!Main.RgiConfig.Bind("Status Effect Toggles", "NoMaxBarrier", true, "Controls whether the status effect 'NoMaxBarrier' can be applied by the 'Barrier' triggered effect.").Value) return;
                 BuffDef = ScriptableObject.CreateInstance<BuffDef>();
                 BuffDef.name = "BUFF_NO_DECAY";
-                BuffDef.isHidden = true;
+                BuffDef.isHidden = false;
                 BuffDef.isDebuff = false;
+                BuffDef.iconSprite =
+                    RandomContentPackProvider.GenerateIcon(Color.black, new[] { Color.yellow },
+                        SpriteShape.Circle);
 
                 RegisteredBuffs.Add(BuffDef);
 
@@ -58,10 +63,14 @@ namespace RandomlyGeneratedItems
 
             public static void Register()
             {
+                if (Main.RgiConfig["Equipment Effect Toggles", "BypassConditions"]?.BoxedValue is not true) return;
                 BuffDef = ScriptableObject.CreateInstance<BuffDef>();
                 BuffDef.name = "BUFF_BYPASS_CONDITIONS";
-                BuffDef.isHidden = true;
+                BuffDef.isHidden = false;
                 BuffDef.isDebuff = false;
+                BuffDef.iconSprite =
+                    RandomContentPackProvider.GenerateIcon(Color.black, new[] { Color.cyan },
+                        SpriteShape.Diamond);
 
                 RegisteredBuffs.Add(BuffDef);
             }
