@@ -164,10 +164,10 @@ namespace RandomlyGeneratedItems.RandomEffects
             }
             
             if (!EffectTriggerType.RegisteredTriggerTypes.Values.Any(triggerType => 
-                    conditions.All(typeCondition => !triggerType.ExclusiveConditions.Contains(typeCondition.Name) && 
-                                                    TriggerTypeMap.TryGetValue(triggerType.Name, out List<string> typeList) && 
-                                                    TriggeredEffect.RegisteredTriggeredEffects.Values.Any(effect => 
-                                                        conditions.All(effectCondition => typeList.Contains(effect.Name) && effect.MinimumGrade <= Grade && !effect.ExclusiveConditions.Contains(effectCondition.Name))))))
+                    conditions.All(typeCondition => !triggerType.ExclusiveConditions.Contains(typeCondition.Name)) && 
+                    TriggerTypeMap.TryGetValue(triggerType.Name, out List<string> typeList) && 
+                    TriggeredEffect.RegisteredTriggeredEffects.Values.Any(effect => 
+                        typeList.Contains(effect.Name) && effect.MinimumGrade <= Grade && conditions.All(effectCondition => !effect.ExclusiveConditions.Contains(effectCondition.Name)))))
             {
                 hasTriggeredEffect = false;
                 if (!noPassiveEffects) hasPassiveEffect = true;

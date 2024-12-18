@@ -101,7 +101,10 @@ namespace RandomlyGeneratedItems.RandomEffects
             }
 
             TriggeredEffect triggeredEffect;
-            bool equipmentExclusiveEffect = (Rng.nextBool || !triggerTypeRegistered) && TriggeredEffect.RegisteredEquipmentEffects.Any(effect => effect.Value.MinimumGrade <= Grade);
+            bool equipmentExclusiveEffect = (Rng.nextBool 
+                                             || !triggerTypeRegistered 
+                                             || !TriggeredEffect.RegisteredTriggeredEffects.Values.Any(effect => effect.MinimumGrade <= Grade && !effect.ExclusiveConditions.Contains("Equipment"))) 
+                                            && TriggeredEffect.RegisteredEquipmentEffects.Any(effect => effect.Value.MinimumGrade <= Grade);
             if (equipmentExclusiveEffect)
             {
                 do

@@ -4,6 +4,9 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.0.7**
+* Hotfix for issue that would freeze the game on the loading screen if you toggled off every single passive and triggered effect, but not every trigger type.
+
 **2.0.6**
 * The config has been massively expanded with numerous toggles that allow you to control what can appear on randomly generated items.
 * Fix buffs given by randomly generated items not having icons.
