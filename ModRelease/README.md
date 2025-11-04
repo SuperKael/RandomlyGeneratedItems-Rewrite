@@ -4,10 +4,13 @@ This is a rewrite of the [Randomly Generated Items](https://thunderstore.io/pack
 
 ## Changelog
 
+**2.1.1**
+* Hotfix for issue with 2.1.0 that caused the game to get permanently stuck on the initial loading screen... oops.
+
 **2.1.0**
 * Add Lunar items! These come with some uniquely powerful effects that do not appear on other items, but also come with negative effects ranging from just a nuisance to run-ending.
 	* Be careful to read what randomly generated lunar items do before picking them up! **_It is possible for items to generate with effects that will just instantly kill you_**.
-* Heavily optimize the random item generation process, making it about 50x faster. As part of this, random sprite generation is now asyncronous and lazily performed - this means that if you generate a very large number of items, some of them may not have their sprites generated yet when the loading screen finishes. They will continue to generate until they finish, and this may cause a noticable drop in framerate for a while until it is done.
+* Heavily optimize the random item generation process, making it about 50x faster. As part of this, random sprite generation is now asynchronous and lazily performed - this means that if you generate a very large number of items, some of them may not have their sprites generated yet when the loading screen finishes. They will continue to generate until they finish, and this may cause a noticeable drop in framerate for a while until it is done.
 * Various significant changes to the internal structure of the mod. Many of these are in preparation for adding an option to regenerate items without restarting the game in the future, although that feature is not finished yet.
 * Bug fixes, including fixing boss items drops and the item selection from the Halcyon Shrine.
 * Add some new restrictive conditions. This does not effect how likely it is for items to have conditions on them, just increases the variety of what the conditions can be.

@@ -60,8 +60,10 @@ namespace RandomlyGeneratedItems.RandomEffects
         protected HashSet<string> PassiveEffectNames = new();
         protected HashSet<string> TriggeredEffectNames = new();
 
+        protected abstract string NameLanguageToken { get; }
         protected abstract string PickupLanguageToken { get; }
         protected abstract string DescriptionLanguageToken { get; }
+        protected abstract string LoreLanguageToken { get; }
 
         private LanguageAPI.LanguageOverlay nameLanguageOverlay;
         private LanguageAPI.LanguageOverlay namePluralLanguageOverlay;
@@ -325,6 +327,18 @@ namespace RandomlyGeneratedItems.RandomEffects
         public string FormatLunarStrengthPercentage(string textStyle)
         {
             return $"<style=c{textStyle}>{LunarStrength:#0}%</style>" + (LunarStackScaling > 0 ? $" <style=cStack>(+{LunarStrength * LunarStackScaling:#0}% per stack)</style>" : "");
+        }
+
+        public void SetNameAndLore(string itemName, string itemNamePlural, string lore)
+        {
+            if (nameLanguageOverlay != null)
+                nameLanguageOverlay.Remove();
+            if (namePluralLanguageOverlay != null)
+                namePluralLanguageOverlay.Remove();
+
+            nameLanguageOverlay = LanguageAPI.AddOverlay(NameLanguageToken, itemName);
+            namePluralLanguageOverlay = LanguageAPI.AddOverlay(NameLanguageToken + "_PLURAL", itemNamePlural);
+            loreLanguageOverlay = LanguageAPI.AddOverlay(LoreLanguageToken, lore);
         }
 
         public void InvalidateDescription()

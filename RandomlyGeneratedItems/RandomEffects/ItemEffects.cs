@@ -17,8 +17,10 @@ namespace RandomlyGeneratedItems.RandomEffects
         public string VoidCorruptsItemNameToken;
 
         public override Sprite Sprite => Item.pickupIconSprite;
+        protected override string NameLanguageToken => Item.nameToken;
         protected override string PickupLanguageToken => Item.pickupToken;
         protected override string DescriptionLanguageToken => Item.descriptionToken;
+        protected override string LoreLanguageToken => Item.loreToken;
 
         public ItemEffects(ItemDef item, Xoroshiro128Plus rng) : base(item.name, rng)
         {

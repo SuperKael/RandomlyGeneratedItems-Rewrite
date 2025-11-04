@@ -15,8 +15,10 @@ namespace RandomlyGeneratedItems.RandomEffects
         public EquipmentDef InactiveEquipment;
 
         public override Sprite Sprite => Equipment.pickupIconSprite;
+        protected override string NameLanguageToken => Equipment.nameToken;
         protected override string PickupLanguageToken => Equipment.pickupToken;
         protected override string DescriptionLanguageToken => Equipment.descriptionToken;
+        protected override string LoreLanguageToken => Equipment.loreToken;
 
         public EquipmentEffects(EquipmentDef equipment, Xoroshiro128Plus rng) : base(equipment.name, rng)
         {

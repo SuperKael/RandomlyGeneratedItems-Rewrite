@@ -291,7 +291,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
                     EquipmentState equipmentState = character.inventory.currentEquipmentState;
                     if (rng.RangeInt(0, items.Count + 1) == 0
-                        && Main.ContentPackProvider.GeneratedEquipmentDefs.TryGetValue(equipmentState.equipmentDef, out EquipmentEffects equipmentEffects)
+                        && Main.ContentPackProvider.GeneratedEquipmentEffects.TryGetValue(equipmentState.equipmentDef, out EquipmentEffects equipmentEffects)
                         && !equipmentEffects.HasTriggeredEffect("PermanentItemStrengthBoost"))
                     {
                         targetEffects = equipmentEffects;
@@ -302,7 +302,7 @@ namespace RandomlyGeneratedItems.RandomEffects
                         while (items.Count > 0)
                         {
                             ItemIndex itemIndex = rng.NextElementUniform(items);
-                            if (Main.ContentPackProvider.GeneratedItemDefs.TryGetValue(ItemCatalog.GetItemDef(itemIndex), out ItemEffects itemEffects)
+                            if (Main.ContentPackProvider.GeneratedItemEffects.TryGetValue(ItemCatalog.GetItemDef(itemIndex), out ItemEffects itemEffects)
                                 && !itemEffects.HasTriggeredEffect("PermanentItemStrengthBoost"))
                             {
                                 targetEffects = itemEffects;

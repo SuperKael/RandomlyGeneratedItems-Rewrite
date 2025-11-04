@@ -61,8 +61,11 @@ namespace RandomlyGeneratedItems
         public int LunarEquipmentCount;
         public bool VoidsConvertNormals;
 
-        public readonly Dictionary<ItemDef, ItemEffects> GeneratedItemDefs = new();
-        public readonly Dictionary<EquipmentDef, EquipmentEffects> GeneratedEquipmentDefs = new();
+        public readonly List<ItemDef> GeneratedItemDefs = new();
+        public readonly Dictionary<ItemDef, ItemEffects> GeneratedItemEffects = new();
+
+        public readonly List<EquipmentDef> GeneratedEquipmentDefs = new();
+        public readonly Dictionary<EquipmentDef, EquipmentEffects> GeneratedEquipmentEffects = new();
         public readonly HashSet<string> GeneratedNames = new();
 
         public string identifier => "RandomlyGeneratedItems";
@@ -146,8 +149,8 @@ namespace RandomlyGeneratedItems
                     List<ItemDef.Pair> transformations = new();
 
                     IEnumerator<ItemDef> tier1Items =
-                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier1).GetEnumerator();
-                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier1))
+                        GeneratedItemEffects.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier1).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemEffects.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier1))
                     {
                         if (!tier1Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
@@ -161,8 +164,8 @@ namespace RandomlyGeneratedItems
                     tier1Items.Dispose();
 
                     IEnumerator<ItemDef> tier2Items =
-                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier2).GetEnumerator();
-                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier2))
+                        GeneratedItemEffects.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier2).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemEffects.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier2))
                     {
                         if (!tier2Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
@@ -176,8 +179,8 @@ namespace RandomlyGeneratedItems
                     tier2Items.Dispose();
 
                     IEnumerator<ItemDef> tier3Items =
-                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier3).GetEnumerator();
-                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier3))
+                        GeneratedItemEffects.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier3).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemEffects.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier3))
                     {
                         if (!tier3Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
@@ -246,9 +249,9 @@ namespace RandomlyGeneratedItems
                 }
 
                 self.availableItems.Clear();
-                foreach (ItemDef itemDef in GeneratedItemDefs.Keys) self.availableItems.Add(itemDef.itemIndex);
+                foreach (ItemDef itemDef in GeneratedItemEffects.Keys) self.availableItems.Add(itemDef.itemIndex);
                 self.availableEquipment.Clear();
-                foreach (EquipmentDef equipmentDef in GeneratedEquipmentDefs.Keys) self.availableEquipment.Add(equipmentDef.equipmentIndex);
+                foreach (EquipmentDef equipmentDef in GeneratedEquipmentEffects.Keys) self.availableEquipment.Add(equipmentDef.equipmentIndex);
 
                 orig(self);
             };
@@ -407,7 +410,7 @@ namespace RandomlyGeneratedItems
 
             On.RoR2.EquipmentSlot.PerformEquipmentAction += (orig, self, equipmentDef) =>
             {
-                bool success = GeneratedEquipmentDefs.ContainsKey(equipmentDef) || orig(self, equipmentDef);
+                bool success = GeneratedEquipmentEffects.ContainsKey(equipmentDef) || orig(self, equipmentDef);
                 if (!success || !NetworkServer.active) return false;
                 AbstractEffects.TriggerEffects("Equipment", self.characterBody, new Dictionary<string, object>
                 {
@@ -442,14 +445,14 @@ namespace RandomlyGeneratedItems
                 }
                 itemNum++;
             }
-            ContentPack.itemDefs.Add(GeneratedItemDefs.Keys.ToArray());
+            ContentPack.itemDefs.Add(GeneratedItemEffects.Keys.ToArray());
         }
 
         private ItemDef CreateItemDef(ItemTier tier)
         {
             ItemDef itemDef = ScriptableObject.CreateInstance<ItemDef>();
 
-            itemDef.name = "RGI_" + tier.ToString().ToUpperInvariant() + "_" + GeneratedNames.Count.ToString("00000000");
+            itemDef.name = "RGI_" + tier.ToString().ToUpperInvariant() + "_" + GeneratedItemDefs.Count.ToString("00000000");
             itemDef.AutoPopulateTokens();
             itemDef.requiredExpansion = RgiExpansion;
             itemDef.hidden = false;
@@ -461,6 +464,8 @@ namespace RandomlyGeneratedItems
             LanguageAPI.Add(itemDef.nameToken, "Tabula Rasa");
             LanguageAPI.Add(itemDef.nameToken + "_PLURAL", "Tabula Rasa");
             LanguageAPI.Add(itemDef.loreToken, "This is an uninitialized Randomly Generated Item - if you can read this, something went wrong!");
+
+            GeneratedItemDefs.Add(itemDef);
 
             return itemDef;
         }
@@ -479,6 +484,10 @@ namespace RandomlyGeneratedItems
 
             itemDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), itemDef.name, spriteShape);
             itemDef.pickupIconSprite = GenerateRandomItemIconAsync(effects.SpriteColors ?? Array.Empty<Color>(), color, spriteShape);
+
+            (string itemName, string itemNamePlural) = GenerateRandomItemName();
+            string lore = GenerateRandomItemLogEntry();
+            effects.SetNameAndLore(itemName, itemNamePlural, lore);
 
             LanguageAPI.Add(itemDef.pickupToken, effects.Description);
             LanguageAPI.Add(itemDef.descriptionToken, effects.Description);
@@ -510,7 +519,7 @@ namespace RandomlyGeneratedItems
             effects.Register();
 
             Main.RgiLogger.LogDebug("Generated a " + itemDef.tier + " item named " + Language.GetString(itemDef.nameToken));
-            GeneratedItemDefs[itemDef] = effects;
+            GeneratedItemEffects[itemDef] = effects;
         }
 
         private IEnumerator GenerateEquipments(LoadStaticContentAsyncArgs contentPackArgs)
@@ -527,7 +536,7 @@ namespace RandomlyGeneratedItems
                 GenerateEquipment(true, false);
                 yield return null;
             }
-            ContentPack.equipmentDefs.Add(GeneratedEquipmentDefs.Keys.ToArray());
+            ContentPack.equipmentDefs.Add(GeneratedEquipmentEffects.Keys.ToArray());
         }
 
         private EquipmentDef CreateEquipmentDef(bool isLunar, bool isBoss)
@@ -538,20 +547,20 @@ namespace RandomlyGeneratedItems
             {
                 if (isBoss)
                 {
-                    equipmentDef.name = "RGI_LUNAR_BOSS_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                    equipmentDef.name = "RGI_LUNAR_BOSS_EQUIP_" + GeneratedEquipmentDefs.Count.ToString("00000000");
                 }
                 else
                 {
-                    equipmentDef.name = "RGI_LUNAR_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                    equipmentDef.name = "RGI_LUNAR_EQUIP_" + GeneratedEquipmentDefs.Count.ToString("00000000");
                 }
             }
             else if (isBoss)
             {
-                equipmentDef.name = "RGI_BOSS_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                equipmentDef.name = "RGI_BOSS_EQUIP_" + GeneratedEquipmentDefs.Count.ToString("00000000");
             }
             else
             {
-                equipmentDef.name = "RGI_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                equipmentDef.name = "RGI_EQUIP_" + GeneratedEquipmentDefs.Count.ToString("00000000");
             }
             equipmentDef.AutoPopulateTokens();
             equipmentDef.requiredExpansion = RgiExpansion;
@@ -562,6 +571,8 @@ namespace RandomlyGeneratedItems
             LanguageAPI.Add(equipmentDef.nameToken, "Tabula Rasa");
             LanguageAPI.Add(equipmentDef.nameToken + "_PLURAL", "Tabula Rasa");
             LanguageAPI.Add(equipmentDef.loreToken, "This is an uninitialized Randomly Generated Item - if you can read this, something went wrong!");
+
+            GeneratedEquipmentDefs.Add(equipmentDef);
 
             return equipmentDef;
         }
@@ -580,6 +591,10 @@ namespace RandomlyGeneratedItems
 
             equipmentDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), equipmentDef.name, spriteShape);
             equipmentDef.pickupIconSprite = GenerateRandomItemIconAsync(effects.SpriteColors ?? Array.Empty<Color>(), color, spriteShape);
+
+            (string itemName, string itemNamePlural) = GenerateRandomItemName();
+            string lore = GenerateRandomItemLogEntry();
+            effects.SetNameAndLore(itemName, itemNamePlural, lore);
 
             LanguageAPI.Add(equipmentDef.pickupToken, effects.Description);
             LanguageAPI.Add(equipmentDef.descriptionToken, effects.Description);
@@ -609,7 +624,7 @@ namespace RandomlyGeneratedItems
             effects.Register();
 
             Main.RgiLogger.LogDebug("Generated a " + (equipmentDef.isLunar ? "lunar " : "") + (equipmentDef.isBoss ? "boss " : "") + "equipment named " + Language.GetString(equipmentDef.nameToken));
-            GeneratedEquipmentDefs[equipmentDef] = effects;
+            GeneratedEquipmentEffects[equipmentDef] = effects;
 
             return effects;
         }
@@ -905,24 +920,24 @@ namespace RandomlyGeneratedItems
         {
             if (!ItemTypeCounts.TryGetValue(tier, out int tierCount) || tierCount <= 0) return null;
             int itemIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, tierCount);
-            return GeneratedItemDefs.Keys.FirstOrDefault(itemDef => itemDef.tier == tier && itemIndex-- == 0);
+            return GeneratedItemEffects.Keys.FirstOrDefault(itemDef => itemDef.tier == tier && itemIndex-- == 0);
         }
 
         private EquipmentDef RandomizeEquipmentPickup(bool isLunar, bool isBoss)
         {
             if (EquipmentCount == 0) return null;
             int equipmentIndex;
-            int matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss);
+            int matchingEquipmentCount = GeneratedEquipmentEffects.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss);
             if (matchingEquipmentCount > 0)
             {
                 equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
-                return GeneratedEquipmentDefs.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss && equipmentIndex-- == 0);
+                return GeneratedEquipmentEffects.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss && equipmentIndex-- == 0);
             }
-            matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar);
-            if (isLunar && matchingEquipmentCount <= 0) matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => !equipmentDef.isLunar);
+            matchingEquipmentCount = GeneratedEquipmentEffects.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar);
+            if (isLunar && matchingEquipmentCount <= 0) matchingEquipmentCount = GeneratedEquipmentEffects.Keys.Count(equipmentDef => !equipmentDef.isLunar);
             if (matchingEquipmentCount <= 0) return null;
             equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
-            return GeneratedEquipmentDefs.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentIndex-- == 0);
+            return GeneratedEquipmentEffects.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentIndex-- == 0);
         }
     }
 }
