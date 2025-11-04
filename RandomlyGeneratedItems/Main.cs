@@ -2,6 +2,8 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using RoR2.ContentManagement;
+using System;
+using UnityEngine;
 
 namespace RandomlyGeneratedItems
 {
@@ -14,7 +16,7 @@ namespace RandomlyGeneratedItems
 
         public const string PluginAuthor = "SuperKael"; // Original author is HIFUPulse!
         public const string PluginName = "RandomlyGeneratedItems";
-        public const string PluginVersion = "2.0.0";
+        public const string PluginVersion = "2.1.0";
 
         public static ConfigFile RgiConfig;
         public static ManualLogSource RgiLogger;
@@ -47,6 +49,12 @@ namespace RandomlyGeneratedItems
             NameSystem.Populate();
 
             ContentManager.collectContentPackProviders += addContentPackProvider => addContentPackProvider(ContentPackProvider = new RandomContentPackProvider());
+        }
+
+        public void Update()
+        {
+            if (RandomContentPackProvider.AsyncTaskFinalizers.TryDequeue(out Action finalizer))
+                finalizer();
         }
     }
 }

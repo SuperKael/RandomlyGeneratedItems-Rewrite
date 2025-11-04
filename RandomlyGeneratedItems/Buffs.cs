@@ -34,9 +34,8 @@ namespace RandomlyGeneratedItems
                 BuffDef.name = "BUFF_NO_DECAY";
                 BuffDef.isHidden = false;
                 BuffDef.isDebuff = false;
-                BuffDef.iconSprite =
-                    RandomContentPackProvider.GenerateIcon(Color.black, new[] { Color.yellow },
-                        SpriteShape.Circle);
+                BuffDef.iconSprite = RandomContentPackProvider.GenerateIcon(new[] { Color.yellow }, Color.black,
+                    SpriteShape.Circle);
 
                 RegisteredBuffs.Add(BuffDef);
 
@@ -68,9 +67,8 @@ namespace RandomlyGeneratedItems
                 BuffDef.name = "BUFF_BYPASS_CONDITIONS";
                 BuffDef.isHidden = false;
                 BuffDef.isDebuff = false;
-                BuffDef.iconSprite =
-                    RandomContentPackProvider.GenerateIcon(Color.black, new[] { Color.cyan },
-                        SpriteShape.Diamond);
+                BuffDef.iconSprite = RandomContentPackProvider.GenerateIcon(new[] { Color.cyan }, Color.black,
+                    SpriteShape.Diamond);
 
                 RegisteredBuffs.Add(BuffDef);
             }

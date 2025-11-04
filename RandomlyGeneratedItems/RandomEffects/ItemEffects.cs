@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using HarmonyLib;
+using R2API;
 using RoR2;
 using UnityEngine;
-using UnityEngine.TextCore;
-using static RoR2.MapZone;
 
 namespace RandomlyGeneratedItems.RandomEffects
 {
@@ -14,7 +14,11 @@ namespace RandomlyGeneratedItems.RandomEffects
         public ItemDef Item;
         public ItemDef InactiveItem;
 
+        public string VoidCorruptsItemNameToken;
+
         public override Sprite Sprite => Item.pickupIconSprite;
+        protected override string PickupLanguageToken => Item.pickupToken;
+        protected override string DescriptionLanguageToken => Item.descriptionToken;
 
         public ItemEffects(ItemDef item, Xoroshiro128Plus rng) : base(item.name, rng)
         {
@@ -49,11 +53,11 @@ namespace RandomlyGeneratedItems.RandomEffects
         public override SpriteShape Generate()
         {
             Rng = new Xoroshiro128Plus(Rng);
-            Description = string.Empty;
             SpriteColors = Array.Empty<Color>();
 
             float strengthModifier;
             float stackScalingModifier;
+            bool isLunar = false;
 
             switch (Item.tier)
             {
@@ -98,9 +102,10 @@ namespace RandomlyGeneratedItems.RandomEffects
                     stackScalingModifier = 0.5f;
                     break;
                 case ItemTier.Lunar:
-                    Grade = 5;
-                    strengthModifier = 12f;
+                    Grade = 6;
+                    strengthModifier = 8f;
                     stackScalingModifier = 1f;
+                    isLunar = true;
                     break;
                 default:
                     Grade = 0;
@@ -144,13 +149,7 @@ namespace RandomlyGeneratedItems.RandomEffects
 
                 strengthModifier *= effectCondition.StrengthModifier;
 
-                Conditions.Add(effectCondition.GetConditionCallback(this));
-                string conditionDesc = effectCondition.DescriptionDelegate(this);
-                if (i > 0)
-                {
-                    conditionDesc = char.ToLower(conditionDesc[0]) + conditionDesc[1..];
-                }
-                Description += conditionDesc;
+                AddCondition(effectCondition);
             }
 
             bool noPassiveEffects = false;
@@ -182,6 +181,8 @@ namespace RandomlyGeneratedItems.RandomEffects
             TriggeredStrength = Rng.RangeFloat(1f, 2f) * strengthModifier;
             TriggeredStackScaling = stackScalingModifier / (1 + ChanceStackScaling);
             if (hasPassiveEffect) TriggeredStrength *= 0.5f;
+            LunarStrength = Rng.RangeFloat(1f, 2f) * strengthModifier;
+            LunarStackScaling = stackScalingModifier / (1 + ChanceStackScaling);
 
             if (Chance >= 100f)
             {
@@ -191,8 +192,7 @@ namespace RandomlyGeneratedItems.RandomEffects
             {
                 TriggeredStrength *= 1 + MathF.Log(1 / (Chance / 100));
             }
-
-            Color[] passiveColors = null;
+            
             if (hasPassiveEffect)
             {
                 PassiveEffect passiveEffect;
@@ -202,85 +202,230 @@ namespace RandomlyGeneratedItems.RandomEffects
                 } while (passiveEffect.MinimumGrade > Grade ||
                          conditions.Any(condition => passiveEffect.ExclusiveConditions.Contains(condition.Name)));
 
-                PassiveStrength *= passiveEffect.StrengthModifier;
-                passiveColors = passiveEffect.SpriteColors;
-                if (passiveEffect.ItemTags?.Length > 0) Item.tags = Item.tags.AddRangeToArray(passiveEffect.ItemTags);
+                if (passiveEffect.MinimumGrade >= 6) isLunar = false;
 
-                OnPassiveEffect += passiveEffect.GetPassiveEffectCallback(this);
-                OnPassiveSpecialStat += passiveEffect.GetPassiveSpecialStatCallback(this);
-                string passiveDesc = passiveEffect.DescriptionDelegate(this);
-                if (conditionCount > 0)
-                {
-                    passiveDesc = char.ToLower(passiveDesc[0]) + passiveDesc[1..];
-                }
-                Description += passiveDesc;
+                PassiveStrength *= passiveEffect.StrengthModifier;
+                Item.tags = Item.tags.AddRangeToArray(passiveEffect.ItemTags);
+
+                AddPassiveEffect(passiveEffect);
+
+                SpriteColors = SpriteColors.AddRangeToArray(passiveEffect.SpriteColors);
             }
             else if (!hasTriggeredEffect)
             {
-                Description = "You disabled every possible passive and triggered effect... what did you think would happen?";
+                OverrideDescription("You disabled every possible passive and triggered effect... what did you think would happen?");
                 return SpriteShape.Circle;
             }
 
-            if (!hasTriggeredEffect)
+            if (hasTriggeredEffect)
             {
-                SpriteColors = new Color[passiveColors.Length];
-                Array.Copy(passiveColors, 0, SpriteColors, 0, passiveColors.Length);
-                return SpriteShape.Square;
+                EffectTriggerType effectTriggerType;
+                do
+                {
+                    effectTriggerType = EffectTriggerType.RegisteredTriggerTypes.Values.ElementAt(Rng.RangeInt(0, EffectTriggerType.RegisteredTriggerTypes.Count));
+                } while (conditions.Any(condition => effectTriggerType.ExclusiveConditions.Contains(condition.Name)) ||
+                         TriggerTypeMap[effectTriggerType.Name].All(triggeredEffectName =>
+                             !TriggeredEffect.RegisteredTriggeredEffects.TryGetValue(triggeredEffectName, out TriggeredEffect triggeredEffect) ||
+                             triggeredEffect.MinimumGrade > Grade ||
+                             conditions.Any(condition => triggeredEffect.ExclusiveConditions.Contains(condition.Name))));
+
+                SetTrigger(effectTriggerType);
+                TriggeredStrength *= effectTriggerType.StrengthModifier;
+
+                TriggeredEffect triggeredEffect;
+                do
+                {
+                    triggeredEffect = TriggeredEffect.RegisteredTriggeredEffects[TriggerTypeMap[TriggerType][Rng.RangeInt(0, TriggerTypeMap[TriggerType].Count)]];
+                } while (triggeredEffect.MinimumGrade > Grade ||
+                         conditions.Any(condition => triggeredEffect.ExclusiveConditions.Contains(condition.Name)));
+
+                if (triggeredEffect.MinimumGrade >= 6) isLunar = false;
+
+                TriggeredStrength *= triggeredEffect.StrengthModifier;
+                Item.tags = Item.tags.AddRangeToArray(triggeredEffect.ItemTags);
+
+                AddTriggeredEffect(triggeredEffect);
+
+                SpriteColors = SpriteColors.AddRangeToArray(triggeredEffect.SpriteColors);
             }
 
-            EffectTriggerType effectTriggerType;
-            do
-            {
-                effectTriggerType = EffectTriggerType.RegisteredTriggerTypes.Values.ElementAt(Rng.RangeInt(0, EffectTriggerType.RegisteredTriggerTypes.Count));
-            } while (conditions.Any(condition => effectTriggerType.ExclusiveConditions.Contains(condition.Name)) || 
-                     TriggerTypeMap[effectTriggerType.Name].All(triggeredEffectName => 
-                         !TriggeredEffect.RegisteredTriggeredEffects.TryGetValue(triggeredEffectName, out TriggeredEffect triggeredEffect) ||
-                         triggeredEffect.MinimumGrade > Grade ||
-                         conditions.Any(condition => triggeredEffect.ExclusiveConditions.Contains(condition.Name))));
+            SpriteShape spriteShape = hasTriggeredEffect ? hasPassiveEffect ? SpriteShape.Circle : SpriteShape.Rhombus : SpriteShape.Square;
 
-            TriggerType = effectTriggerType.Name;
-            TriggeredStrength *= effectTriggerType.StrengthModifier;
+            if (!isLunar) return spriteShape;
+            
+            bool lunarEffectIsTriggered = hasTriggeredEffect && Rng.nextBool;
 
-            TriggeredEffect triggeredEffect;
-            do
+            bool noPassiveLunarEffects = false;
+            if (!PassiveEffect.RegisteredPassiveLunarEffects.Values.Any(effect =>
+                    effect.MinimumGrade <= Grade &&
+                    conditions.All(condition => !effect.ExclusiveConditions.Contains(condition.Name))))
             {
-                triggeredEffect = TriggeredEffect.RegisteredTriggeredEffects[TriggerTypeMap[TriggerType][Rng.RangeInt(0, TriggerTypeMap[TriggerType].Count)]];
-            } while (triggeredEffect.MinimumGrade > Grade ||
-                     conditions.Any(condition => triggeredEffect.ExclusiveConditions.Contains(condition.Name)));
-
-            TriggeredStrength *= triggeredEffect.StrengthModifier;
-            Color[] triggeredColors = triggeredEffect.SpriteColors;
-            if (triggeredEffect.ItemTags?.Length > 0) Item.tags = Item.tags.AddRangeToArray(triggeredEffect.ItemTags);
-
-            OnTriggeredEffect += triggeredEffect.GetTriggeredEffectCallback(this);
-            string triggerDesc = effectTriggerType.DescriptionDelegate(this) + triggeredEffect.DescriptionDelegate(this);
-            if (hasPassiveEffect)
-            {
-                if (Description.EndsWith(".")) Description = Description[..^1];
-                triggerDesc = ", and " + char.ToLower(triggerDesc[0]) + triggerDesc[1..];
-            }
-            else if (conditionCount > 0)
-            {
-                triggerDesc = char.ToLower(triggerDesc[0]) + triggerDesc[1..];
+                noPassiveLunarEffects = true;
+                lunarEffectIsTriggered = hasTriggeredEffect;
             }
 
-            Description += triggerDesc;
-
-
-            if (SpriteColors?.Length > 0)
+            if (lunarEffectIsTriggered && !TriggeredEffect.RegisteredTriggeredLunarEffects.Values.Any(effect =>
+                    effect.MinimumGrade <= Grade &&
+                    conditions.All(effectCondition => !effect.ExclusiveConditions.Contains(effectCondition.Name)) &&
+                    LunarTriggerTypeMap.TryGetValue(TriggerType, out List<string> typeList) && typeList.Contains(effect.Name)))
             {
-                Color[] newSpriteColors = new Color[(passiveColors?.Length ?? 0) + triggeredColors.Length + SpriteColors.Length];
-                Array.Copy(SpriteColors, 0, newSpriteColors, newSpriteColors.Length - SpriteColors.Length, SpriteColors.Length);
-                SpriteColors = newSpriteColors;
+                lunarEffectIsTriggered = false;
+            }
+
+            if (noPassiveLunarEffects && !lunarEffectIsTriggered) return spriteShape;
+
+            if (lunarEffectIsTriggered)
+            {
+                TriggeredEffect[] validTriggeredLunarEffects = TriggeredEffect.RegisteredTriggeredLunarEffects.Values.Where(effect =>
+                    effect.MinimumGrade <= Grade &&
+                    conditions.All(effectCondition => !effect.ExclusiveConditions.Contains(effectCondition.Name)) &&
+                    LunarTriggerTypeMap.TryGetValue(TriggerType, out List<string> typeList) && typeList.Contains(effect.Name)).ToArray();
+
+                TriggeredEffect triggeredEffect = validTriggeredLunarEffects.ElementAt(Rng.RangeInt(0, validTriggeredLunarEffects.Length));
+
+                PassiveStrength *= triggeredEffect.StrengthModifier;
+                TriggeredStrength *= triggeredEffect.StrengthModifier;
+                LunarStrength *= triggeredEffect.StrengthModifier * EffectTriggerType.RegisteredTriggerTypes[TriggerType].StrengthModifier;
+                if (Chance < 100f) LunarStrength *= 1 + MathF.Log(1 / (Chance / 100));
+
+                Item.tags = Item.tags.AddRangeToArray(triggeredEffect.ItemTags);
+
+                AddTriggeredEffect(triggeredEffect);
+
+                SpriteColors = SpriteColors.AddRangeToArray(triggeredEffect.SpriteColors);
             }
             else
             {
-                SpriteColors = new Color[(passiveColors?.Length ?? 0) + triggeredColors.Length];
-            }
-            if (passiveColors != null) Array.Copy(passiveColors, 0, SpriteColors, 0, passiveColors.Length);
-            Array.Copy(triggeredColors, 0, SpriteColors, SpriteColors.Length - triggeredColors.Length, triggeredColors.Length);
+                PassiveEffect[] validPassiveLunarEffects = PassiveEffect.RegisteredPassiveLunarEffects.Values.Where(effect =>
+                    effect.MinimumGrade <= Grade &&
+                    conditions.All(effectCondition => !effect.ExclusiveConditions.Contains(effectCondition.Name))).ToArray();
 
-            return hasPassiveEffect ? SpriteShape.Circle : SpriteShape.Rhombus;
+                PassiveEffect passiveEffect = validPassiveLunarEffects.ElementAt(Rng.RangeInt(0, validPassiveLunarEffects.Length));
+
+                PassiveStrength *= passiveEffect.StrengthModifier;
+                TriggeredStrength *= passiveEffect.StrengthModifier;
+                LunarStrength *= passiveEffect.StrengthModifier;
+
+                Item.tags = Item.tags.AddRangeToArray(passiveEffect.ItemTags);
+
+                AddPassiveEffect(passiveEffect);
+
+                SpriteColors = SpriteColors.AddRangeToArray(passiveEffect.SpriteColors);
+            }
+
+            return spriteShape;
+        }
+
+        protected override string BuildDescription()
+        {
+            StringBuilder sb = new();
+
+            // Conditions
+            if (ConditionNames.Count > 0)
+            {
+                sb.Append(ConditionNames.Count > 1 ? "<b>CONDITIONS:</b> " : "<b>CONDITION:</b> ");
+
+                bool first = true;
+                foreach (string conditionName in ConditionNames)
+                {
+                    if (first)
+                        first = false;
+                    else
+                        sb.Append(" AND ");
+
+                    if (EffectCondition.RegisteredConditions.TryGetValue(conditionName, out EffectCondition condition))
+                        sb.Append(condition.DescriptionDelegate(this));
+                    else
+                        sb.Append($"<style=cDeath><b>ERROR INVALID CONDITION</b> '{conditionName}'</style>");
+                }
+            }
+
+            // Passive Effects
+            if (PassiveEffectNames.Count > 0)
+            {
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append("<b>PASSIVE:</b> ");
+                if (ConditionNames.Count > 1)
+                    sb.Append("Applies passively when the conditions are met.");
+                else if (ConditionNames.Count > 0)
+                    sb.Append("Applies passively when the condition is met.");
+                else
+                    sb.Append("Applies passively.");
+
+                // We hold onto the descriptions of lunar effects to ensure that they always appear after normal effects
+                List<string> lunarEffectDescriptions = new();
+
+                foreach (string effectName in PassiveEffectNames)
+                {
+                    if (PassiveEffect.RegisteredPassiveEffects.TryGetValue(effectName, out PassiveEffect effect))
+                    {
+                        sb.Append("\n<style=cIsUtility><b> => </b></style>");
+                        sb.Append(effect.DescriptionDelegate(this));
+                    }
+                    else if (PassiveEffect.RegisteredPassiveLunarEffects.TryGetValue(effectName, out effect))
+                    {
+                        lunarEffectDescriptions.Add(effect.DescriptionDelegate(this));
+                    }
+                    else
+                    {
+                        sb.Append("\n<style=cIsUtility><b> => </b></style>");
+                        sb.Append($"<style=cDeath><b>ERROR INVALID PASSIVE EFFECT</b> '{effectName}'</style>");
+                    }
+                }
+
+                foreach (string effectDescription in lunarEffectDescriptions)
+                {
+                    sb.Append("\n<style=cDeath><b> => </b></style>");
+                    sb.Append(effectDescription);
+                }
+            }
+
+            // Triggered Effects
+            if (TriggeredEffectNames.Count > 0)
+            {
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append("<b>TRIGGER:</b> ");
+
+                if (EffectTriggerType.RegisteredTriggerTypes.TryGetValue(TriggerType, out EffectTriggerType triggerType))
+                    sb.Append(triggerType.DescriptionDelegate(this));
+                else
+                    sb.Append($"<style=cDeath><b>ERROR INVALID TRIGGER</b> '{TriggerType}'</style>");
+
+                // We hold onto the descriptions of lunar effects to ensure that they always appear after normal effects
+                List<string> lunarEffectDescriptions = new();
+
+                foreach (string effectName in TriggeredEffectNames)
+                {
+                    if (TriggeredEffect.RegisteredTriggeredEffects.TryGetValue(effectName, out TriggeredEffect effect))
+                    {
+                        sb.Append("\n<style=cIsUtility><b> => </b></style>");
+                        sb.Append(effect.DescriptionDelegate(this));
+                    }
+                    else if (TriggeredEffect.RegisteredTriggeredLunarEffects.TryGetValue(effectName, out effect))
+                    {
+                        lunarEffectDescriptions.Add(effect.DescriptionDelegate(this));
+                    }
+                    else
+                    {
+                        sb.Append("\n<style=cIsUtility><b> => </b></style>");
+                        sb.Append($"<style=cDeath><b>ERROR INVALID TRIGGERED EFFECT</b> '{effectName}'</style>");
+                    }
+                }
+
+                foreach (string effectDescription in lunarEffectDescriptions)
+                {
+                    sb.Append("\n<style=cDeath><b> => </b></style>");
+                    sb.Append(effectDescription);
+                }
+            }
+
+            // Void item corruption line
+            if (VoidCorruptsItemNameToken != null)
+            {
+                sb.Append($"\n<style=cIsVoid>Corrupts all {Language.currentLanguage.GetLocalizedStringByToken(VoidCorruptsItemNameToken)}</style>.");
+            }
+
+            return sb.ToString();
         }
     }
 }
