@@ -19,25 +19,26 @@ namespace RandomlyGeneratedItems.RandomEffects
 
         public static IEnumerator Initialize()
         {
-            RegisterCondition("HasShield", 1.5f, _ => "While you have a <style=cIsHealing>shield</style>, ", _ => body => body.healthComponent.shield > 0,
+            RegisterCondition("HasShield", 1.5f, _ => "You have a <style=cIsHealing>shield</style>", _ => body => body.healthComponent.shield > 0,
                 "UnderHalfHP");
-            RegisterCondition("HasBarrier", 1.5f, _ => "While you have a <style=cIsHealing>barrier</style>, ", _ => body => body.healthComponent.barrier > 0,
+            RegisterCondition("HasBarrier", 1.5f, _ => "You have a <style=cIsHealing>barrier</style>", _ => body => body.healthComponent.barrier > 0,
                 "UnderHalfHP");
-            RegisterCondition("OutOfDanger", 2f, _ => "While <style=cIsUtility>out of danger</style>, ", _ => body => body.outOfDanger);
-            RegisterCondition("OutOfCombat", 4f, _ => "While <style=cIsUtility>out of combat</style>, ", _ => body => body.outOfCombat);
-            RegisterCondition("Moving", 1.5f, _ => "While <style=cIsUtility>moving</style>, ", _ => body => !body.GetNotMoving(),
+            RegisterCondition("OutOfDanger", 2f, _ => "You are <style=cIsUtility>out of danger</style>", _ => body => body.outOfDanger);
+            RegisterCondition("OutOfCombat", 4f, _ => "You are <style=cIsUtility>out of combat</style>", _ => body => body.outOfCombat);
+            RegisterCondition("Moving", 1.5f, _ => "You are <style=cIsUtility>moving</style>", _ => body => !body.GetNotMoving(),
                 "NotMoving");
-            RegisterCondition("NotMoving", 4f, _ => "After standing still for <style=cIsHealing>1</style> second, ", _ => body => body.GetNotMoving(),
+            RegisterCondition("NotMoving", 4f, _ => "You stand still for <style=cIsHealing>1</style> second", _ => body => body.GetNotMoving(),
                 "Moving", "Midair");
-            RegisterCondition("UnderHalfHP", 4f, _ => "While below <style=cIsHealth>50% health</style>, ", _ => body => body.healthComponent.combinedHealthFraction <= 0.5f,
+            RegisterCondition("UnderHalfHP", 4f, _ => "You are below <style=cIsHealth>50% health</style>", _ => body => body.healthComponent.combinedHealthFraction <= 0.5f,
                 "HasShield", "HasBarrier", "AtFullHP");
-            RegisterCondition("AtFullHP", 1.5f, _ => "While at <style=cIsHealth>full health</style>, ", _ => body => body.healthComponent.combinedHealthFraction >= 1f,
+            RegisterCondition("AtFullHP", 1.5f, _ => "You are at <style=cIsHealth>full health</style>", _ => body => body.healthComponent.combinedHealthFraction >= 1f,
                 "UnderHalfHP");
-            RegisterCondition("Midair", 2f, _ => "While <style=cIsUtility>midair</style>, ", _ => body => body.characterMotor.lastGroundedTime < Run.FixedTimeStamp.now - 0.2f,
+            RegisterCondition("Midair", 2f, _ => "You are <style=cIsUtility>midair</style>", _ => body => body.characterMotor.lastGroundedTime < Run.FixedTimeStamp.now - 0.2f,
                 "NotMoving");
-            RegisterCondition("Debuffed", 2f, _ => "While <style=cIsHealth>debuffed</style>, ", _ => body => body.activeBuffsList.Any(index => BuffCatalog.GetBuffDef(index).isDebuff));
-            RegisterCondition("First3Minutes", 2f, _ => "For the first <style=cIsUtility>3 minutes</style> every stage, ", _ => _ => Stage.instance && Run.instance.fixedTime - Stage.instance.entryTime.t <= 180);
-            RegisterCondition("TeleporterEvent", 2f, _ => "During the <style=cIsUtility>Teleporter Event</style>, ", _ => _ => TeleporterInteraction.instance && TeleporterInteraction.instance.isCharging);
+            RegisterCondition("Buffed", 1.5f, _ => "You are <style=cIsHealing>buffed</style>", _ => body => body.activeBuffsList.Any(index => !BuffCatalog.GetBuffDef(index).isDebuff));
+            RegisterCondition("Debuffed", 2f, _ => "You are <style=cIsHealth>debuffed</style>", _ => body => body.activeBuffsList.Any(index => BuffCatalog.GetBuffDef(index).isDebuff));
+            RegisterCondition("First3Minutes", 2f, _ => "Only in the first <style=cIsUtility>3 minutes</style> of each stage", _ => _ => Stage.instance && Run.instance.fixedTime - Stage.instance.entryTime.t <= 180);
+            RegisterCondition("TeleporterEvent", 2f, _ => "Only during the <style=cIsUtility>Teleporter Event</style>", _ => _ => TeleporterInteraction.instance && TeleporterInteraction.instance.isCharging);
 
             yield break;
         }

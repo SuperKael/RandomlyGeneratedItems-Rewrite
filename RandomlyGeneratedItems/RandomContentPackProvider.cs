@@ -2,9 +2,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using HarmonyLib;
 using R2API;
 using RandomlyGeneratedItems.RandomEffects;
+using RandomlyGeneratedItems.Utilities;
+using Rewired.Utils;
 using RoR2;
 using RoR2.ContentManagement;
 using RoR2.ExpansionManagement;
@@ -16,6 +19,11 @@ namespace RandomlyGeneratedItems
 {
     public class RandomContentPackProvider : IContentPackProvider
     {
+        public const int RandomSpriteResolution = 512;
+        public const int RandomSpriteNoiseGranularity = 4;
+        public const int RandomSpriteNoiseResolution = RandomSpriteResolution / RandomSpriteNoiseGranularity;
+        public const float RandomSpriteNoiseScale = 4;
+
         public static readonly Dictionary<ItemTier, Color> TierColors = new()
         {
             [ItemTier.Tier1]     = new Color(0.88f, 0.89f, 0.89f),
@@ -40,7 +48,9 @@ namespace RandomlyGeneratedItems
             [SpriteShape.Cylinder] = Tuple.Create<Func<int, int, bool>, Func<int, int, bool>>((x, y) => Mathf.Abs(y - 256) < 96 ? Mathf.Abs(x - 256) < 96 : Mathf.Pow(x - 256, 2) + Mathf.Pow(Mathf.Abs(y - 256) - 96, 2) < 96 * 96, (x, y) => Mathf.Abs(y - 256) < 96 ? Mathf.Abs(x - 256) < 112 : Mathf.Pow(x - 256, 2) + Mathf.Pow(Mathf.Abs(y - 256) - 96, 2) < 112 * 112)
         };
 
-        public static Shader HgStandard;
+        private static Shader HgStandard;
+        private static FastNoiseLite Noise;
+        public static readonly Queue<Action> AsyncTaskFinalizers = new();
 
         public ContentPack ContentPack = new();
         public ExpansionDef RgiExpansion;
@@ -48,10 +58,11 @@ namespace RandomlyGeneratedItems
 
         public SortedDictionary<ItemTier, int> ItemTypeCounts = new();
         public int EquipmentCount;
+        public int LunarEquipmentCount;
         public bool VoidsConvertNormals;
 
-        public readonly List<ItemDef> GeneratedItemDefs = new();
-        public readonly List<EquipmentDef> GeneratedEquipmentDefs = new();
+        public readonly Dictionary<ItemDef, ItemEffects> GeneratedItemDefs = new();
+        public readonly Dictionary<EquipmentDef, EquipmentEffects> GeneratedEquipmentDefs = new();
         public readonly HashSet<string> GeneratedNames = new();
 
         public string identifier => "RandomlyGeneratedItems";
@@ -59,6 +70,9 @@ namespace RandomlyGeneratedItems
         public RandomContentPackProvider()
         {
             HgStandard = Addressables.LoadAssetAsync<Shader>("RoR2/Base/Shaders/HGStandard.shader").WaitForCompletion();
+            Noise = new FastNoiseLite(Main.Rng.nextInt);
+            Noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+            Noise.SetFrequency(RandomSpriteNoiseScale / RandomSpriteNoiseResolution);
         }
 
         public IEnumerator LoadStaticContentAsync(LoadStaticContentAsyncArgs contentPackArgs)
@@ -69,8 +83,8 @@ namespace RandomlyGeneratedItems
             RgiExpansion.name = "EXPANSION_RGI";
             RgiExpansion.nameToken = RgiExpansion.name + "_NAME";
             RgiExpansion.descriptionToken = RgiExpansion.name + "_DESC";
-            RgiExpansion.iconSprite = GenerateIcon(Color.green, new[] { Color.green }, SpriteShape.Rhombus);
-            RgiExpansion.disabledIconSprite = GenerateIcon(Color.gray, new[] { Color.gray }, SpriteShape.Rhombus);
+            RgiExpansion.iconSprite = GenerateIcon(new[] { Color.green }, Color.green, SpriteShape.Rhombus);
+            RgiExpansion.disabledIconSprite = GenerateIcon(new[] { Color.gray }, Color.gray, SpriteShape.Rhombus);
 
             LanguageAPI.Add(RgiExpansion.nameToken, "Randomly Generated Items");
             LanguageAPI.Add(RgiExpansion.descriptionToken, "Enables randomly-generated items. Note that you must fully restart the game in order to generate a new batch of items.");
@@ -82,8 +96,8 @@ namespace RandomlyGeneratedItems
             ArtifactFrivolity.nameToken = ArtifactFrivolity.cachedName + "_NAME";
             ArtifactFrivolity.descriptionToken = ArtifactFrivolity.cachedName + "_DESC";
             ArtifactFrivolity.requiredExpansion = RgiExpansion;
-            ArtifactFrivolity.smallIconSelectedSprite = GenerateIcon(new Color(0.9f, 0.75f, 0.9f), new[] { new Color(0.9f, 0.75f, 0.9f) }, SpriteShape.Square);
-            ArtifactFrivolity.smallIconDeselectedSprite = GenerateIcon(Color.gray, new[] { Color.gray }, SpriteShape.Square);
+            ArtifactFrivolity.smallIconSelectedSprite = GenerateIcon(new[] { new Color(0.9f, 0.75f, 0.9f) }, new Color(0.9f, 0.75f, 0.9f), SpriteShape.Square);
+            ArtifactFrivolity.smallIconDeselectedSprite = GenerateIcon(new[] { Color.gray }, Color.gray, SpriteShape.Square);
 
             LanguageAPI.Add(ArtifactFrivolity.nameToken, "Artifact of Frivolity");
             LanguageAPI.Add(ArtifactFrivolity.descriptionToken, "Disables all items except for randomly-generated ones.");
@@ -106,9 +120,14 @@ namespace RandomlyGeneratedItems
                 "The number of void uncommon items to generate.").Value;
             ItemTypeCounts[ItemTier.VoidTier3] = Main.RgiConfig.Bind("Configuration", "Void Legendary Items", 3,
                 "The number of void legendary items to generate.").Value;
+            ItemTypeCounts[ItemTier.Lunar] = Main.RgiConfig.Bind("Configuration", "Lunar Items", 20,
+                "The number of lunar items to generate.").Value;
             EquipmentCount = Main.RgiConfig.Bind("Configuration", "Equipment Items", 20,
                 "The number of equipment items to generate.").Value;
-            
+            LunarEquipmentCount = Main.RgiConfig.Bind("Configuration", "Lunar Equipment Items", 10,
+                "The number of lumar equipment items to generate.").Value;
+
+
             VoidsConvertNormals = Main.RgiConfig.Bind("Configuration", "Void Items Convert Normal Items", true, "Whether generated void items should convert certain generated normal items. If true, at least as many normal items as void items of each tier will always be generated.").Value;
             if (VoidsConvertNormals)
             {
@@ -127,50 +146,49 @@ namespace RandomlyGeneratedItems
                     List<ItemDef.Pair> transformations = new();
 
                     IEnumerator<ItemDef> tier1Items =
-                        GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.Tier1).GetEnumerator();
-                    foreach (ItemDef itemDef in GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.VoidTier1))
+                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier1).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier1))
                     {
                         if (!tier1Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
                         {
                             itemDef1 = tier1Items.Current,
-                            itemDef2 = itemDef
+                            itemDef2 = item.Key
                         });
+                        item.Value.VoidCorruptsItemNameToken = tier1Items.Current.nameToken + "_PLURAL";
+                        item.Value.RegenerateDescription();
                     }
                     tier1Items.Dispose();
 
                     IEnumerator<ItemDef> tier2Items =
-                        GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.Tier2).GetEnumerator();
-                    foreach (ItemDef itemDef in GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.VoidTier2))
+                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier2).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier2))
                     {
                         if (!tier2Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
                         {
                             itemDef1 = tier2Items.Current,
-                            itemDef2 = itemDef
+                            itemDef2 = item.Key
                         });
+                        item.Value.VoidCorruptsItemNameToken = tier2Items.Current.nameToken + "_PLURAL";
+                        item.Value.RegenerateDescription();
                     }
                     tier2Items.Dispose();
 
                     IEnumerator<ItemDef> tier3Items =
-                        GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.Tier3).GetEnumerator();
-                    foreach (ItemDef itemDef in GeneratedItemDefs.Where(itemDef => itemDef.tier == ItemTier.VoidTier3))
+                        GeneratedItemDefs.Keys.Where(itemDef => itemDef.tier == ItemTier.Tier3).GetEnumerator();
+                    foreach (KeyValuePair<ItemDef, ItemEffects> item in GeneratedItemDefs.Where(itemDef => itemDef.Key.tier == ItemTier.VoidTier3))
                     {
                         if (!tier3Items.MoveNext()) break;
                         transformations.Add(new ItemDef.Pair
                         {
                             itemDef1 = tier3Items.Current,
-                            itemDef2 = itemDef
+                            itemDef2 = item.Key
                         });
+                        item.Value.VoidCorruptsItemNameToken = tier3Items.Current.nameToken + "_PLURAL";
+                        item.Value.RegenerateDescription();
                     }
                     tier3Items.Dispose();
-
-                    LanguageAPI.AddOverlay(transformations.SelectMany(
-                            pair => new[] { (descToken: pair.itemDef2.pickupToken, pair.itemDef1.nameToken), (descToken: pair.itemDef2.descriptionToken, pair.itemDef1.nameToken) })
-                        .ToDictionary(
-                            pair => pair.descToken, 
-                            pair => Language.currentLanguage.GetLocalizedStringByToken(pair.descToken) 
-                                    + $"\n<style=cIsVoid>Corrupts all {Language.currentLanguage.GetLocalizedStringByToken(pair.nameToken + "_PLURAL")}</style>."));
 
                     ItemCatalog.itemRelationships[DLC1Content.ItemRelationshipTypes.ContagiousItem]
                         = ItemCatalog.itemRelationships[DLC1Content.ItemRelationshipTypes.ContagiousItem]
@@ -221,76 +239,84 @@ namespace RandomlyGeneratedItems
 
             On.RoR2.Run.BuildDropTable += (orig, self) =>
             {
-                if (RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
+                if (!RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
                 {
-                    self.availableItems.Clear();
-                    foreach (ItemDef itemDef in GeneratedItemDefs) self.availableItems.Add(itemDef.itemIndex);
-                    self.availableEquipment.Clear();
-                    foreach (EquipmentDef equipmentDef in GeneratedEquipmentDefs) self.availableEquipment.Add(equipmentDef.equipmentIndex);
+                    orig(self);
+                    return;
                 }
+
+                self.availableItems.Clear();
+                foreach (ItemDef itemDef in GeneratedItemDefs.Keys) self.availableItems.Add(itemDef.itemIndex);
+                self.availableEquipment.Clear();
+                foreach (EquipmentDef equipmentDef in GeneratedEquipmentDefs.Keys) self.availableEquipment.Add(equipmentDef.equipmentIndex);
+
                 orig(self);
             };
 
             On.RoR2.ExplicitPickupDropTable.GenerateWeightedSelection += (orig, self) =>
             {
-                if (RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
+                if (!RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
                 {
+                    orig(self);
+                    return;
+                }
+
 #pragma warning disable CS0618 // Type or member is obsolete
-                    for (int i = 0; i < self.entries.Length; i++)
+                for (int i = 0; i < self.entries.Length; i++)
+                {
+                    PickupIndex? pickupIndex = FrivolizePickup(PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(self.entries[i].pickupName)));
+                    if (pickupIndex.HasValue)
                     {
-                        PickupIndex pickupIndex = PickupCatalog.FindPickupIndex(self.entries[i].pickupName);
-                        if (pickupIndex == PickupIndex.none) continue;
-                        PickupDef pickup = PickupCatalog.GetPickupDef(pickupIndex);
-                        if (pickup == null) continue;
-                        if (pickup.itemIndex != ItemIndex.None)
+                        self.entries[i].pickupName = PickupCatalog.GetPickupDef(pickupIndex.Value)?.internalName;
+                    }
+                }
+#pragma warning restore CS0618 // Type or member is obsolete
+                for (int i = 0; i < self.pickupEntries.Length; i++)
+                {
+                    if (self.pickupEntries[i].pickupDef is ItemDef item)
+                    {
+                        if (item.requiredExpansion == RgiExpansion) continue;
+                        ItemDef randomizedItem = RandomizeItemPickup(item.tier);
+                        if (randomizedItem != null)
                         {
-                            ItemDef item = ItemCatalog.GetItemDef(pickup.itemIndex);
-                            if (item == null || item.requiredExpansion == RgiExpansion) continue;
-                            ItemDef randomizedItem = RandomizeItemPickup(item.tier);
-                            if (randomizedItem != null)
-                            {
-                                self.entries[i].pickupName = PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(randomizedItem.itemIndex))?.internalName;
-                            }
-                        }
-                        else if (pickup.equipmentIndex != EquipmentIndex.None)
-                        {
-                            EquipmentDef equipment = EquipmentCatalog.GetEquipmentDef(pickup.equipmentIndex);
-                            if (equipment == null || equipment.requiredExpansion == RgiExpansion) continue;
-                            EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
-                            if (randomizedEquipment != null)
-                            {
-                                self.entries[i].pickupName = PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(randomizedEquipment.equipmentIndex))?.internalName;
-                            }
+                            self.pickupEntries[i].pickupDef = randomizedItem;
                         }
                     }
-#pragma warning restore CS0618 // Type or member is obsolete
-                    for (int i = 0; i < self.pickupEntries.Length; i++)
+                    else if (self.pickupEntries[i].pickupDef is EquipmentDef equipment)
                     {
-                        if (self.pickupEntries[i].pickupDef is ItemDef item)
+                        if (equipment.requiredExpansion == RgiExpansion) continue;
+                        EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
+                        if (randomizedEquipment != null)
                         {
-                            ItemDef randomizedItem = RandomizeItemPickup(item.tier);
-                            if (randomizedItem != null)
-                            {
-                                self.pickupEntries[i].pickupDef = randomizedItem;
-                            }
-                        }
-                        else if (self.pickupEntries[i].pickupDef is EquipmentDef equipment)
-                        {
-                            EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
-                            if (randomizedEquipment != null)
-                            {
-                                self.pickupEntries[i].pickupDef = randomizedEquipment;
-                            }
+                            self.pickupEntries[i].pickupDef = randomizedEquipment;
                         }
                     }
                 }
+
                 orig(self);
             };
 
-            On.RoR2.BasicPickupDropTable.IsFilterRequired += (orig, self) => orig(self) && (!self.requiredItemTags.Contains(ItemTag.HalcyoniteShrine) || !RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity));
+            On.RoR2.BasicPickupDropTable.IsFilterRequired += (orig, self) => orig(self) && !(self.requiredItemTags.Contains(ItemTag.HalcyoniteShrine) && RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity));
+
+            On.RoR2.PickupDropletController.CreatePickupDroplet_CreatePickupInfo_Vector3_Vector3 += (orig, pickupInfo, position, velocity) =>
+            {
+                if (RunArtifactManager.instance.IsArtifactEnabled(ArtifactFrivolity))
+                {
+                    pickupInfo.pickupIndex = FrivolizePickupIndex(pickupInfo.pickupIndex);
+                    if (pickupInfo.pickerOptions != null)
+                    {
+                        for (int i = 0; i < pickupInfo.pickerOptions.Length; i++) {
+                            pickupInfo.pickerOptions[i].pickupIndex = FrivolizePickupIndex(pickupInfo.pickerOptions[i].pickupIndex);
+                        }
+                    }
+                }
+
+                orig(pickupInfo, position, velocity);
+            };
 
             bool wasNotMoving = true;
             bool wasOnGround = true;
+            float lastRecalculateTime = 0f;
             On.RoR2.CharacterBody.Update += (orig, self) =>
             {
                 orig(self);
@@ -306,7 +332,11 @@ namespace RandomlyGeneratedItems
                     wasOnGround = !wasOnGround;
                     needsRecalculate = true;
                 }
-                if (needsRecalculate) self.RecalculateStats();
+                if (needsRecalculate || Time.time - lastRecalculateTime > 0.1f)
+                {
+                    self.RecalculateStats();
+                    lastRecalculateTime = Time.time;
+                }
             };
 
             RecalculateStatsAPI.GetStatCoefficients += AbstractEffects.ApplyPassiveEffects;
@@ -377,7 +407,7 @@ namespace RandomlyGeneratedItems
 
             On.RoR2.EquipmentSlot.PerformEquipmentAction += (orig, self, equipmentDef) =>
             {
-                bool success = GeneratedEquipmentDefs.Contains(equipmentDef) || orig(self, equipmentDef);
+                bool success = GeneratedEquipmentDefs.ContainsKey(equipmentDef) || orig(self, equipmentDef);
                 if (!success || !NetworkServer.active) return false;
                 AbstractEffects.TriggerEffects("Equipment", self.characterBody, new Dictionary<string, object>
                 {
@@ -407,25 +437,19 @@ namespace RandomlyGeneratedItems
                 contentPackArgs.ReportProgress(0.5f + 0.2f * ((float)itemNum / totalItems));
                 for (int i = 0; i < itemTypeCount.Value; i++)
                 {
-                    yield return GenerateItem(itemTypeCount.Key);
+                    GenerateItem(itemTypeCount.Key);
+                    yield return null;
                 }
                 itemNum++;
             }
-            ContentPack.itemDefs.Add(GeneratedItemDefs.ToArray());
+            ContentPack.itemDefs.Add(GeneratedItemDefs.Keys.ToArray());
         }
 
-        public IEnumerator GenerateItem(ItemTier tier)
+        private ItemDef CreateItemDef(ItemTier tier)
         {
             ItemDef itemDef = ScriptableObject.CreateInstance<ItemDef>();
 
-            (string itemName, string itemNamePlural, string xmlSafeItemName) = GenerateRandomItemName();
-
-            if (string.IsNullOrEmpty(itemName) || string.IsNullOrEmpty(xmlSafeItemName)) throw new InvalidOperationException("Failed to generate a new item name!");
-
-
-            Color color = TierColors.GetValueOrDefault(tier, Color.black);
-
-            itemDef.name = "RGI_" + xmlSafeItemName;
+            itemDef.name = "RGI_" + tier.ToString().ToUpperInvariant() + "_" + GeneratedNames.Count.ToString("00000000");
             itemDef.AutoPopulateTokens();
             itemDef.requiredExpansion = RgiExpansion;
             itemDef.hidden = false;
@@ -434,119 +458,163 @@ namespace RandomlyGeneratedItems
             itemDef.deprecatedTier = tier;
 #pragma warning restore CS0618
 
+            LanguageAPI.Add(itemDef.nameToken, "Tabula Rasa");
+            LanguageAPI.Add(itemDef.nameToken + "_PLURAL", "Tabula Rasa");
+            LanguageAPI.Add(itemDef.loreToken, "This is an uninitialized Randomly Generated Item - if you can read this, something went wrong!");
+
+            return itemDef;
+        }
+
+        public void GenerateItem(ItemTier tier)
+        {
+            GenerateItemEffects(CreateItemDef(tier));
+        }
+
+        public void GenerateItemEffects(ItemDef itemDef)
+        {
+            Color color = TierColors.GetValueOrDefault(itemDef.tier, Color.black);
+
             ItemEffects effects = new(itemDef, Main.Rng);
             SpriteShape spriteShape = effects.Generate();
 
-            itemDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
-            itemDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
+            itemDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), itemDef.name, spriteShape);
+            itemDef.pickupIconSprite = GenerateRandomItemIconAsync(effects.SpriteColors ?? Array.Empty<Color>(), color, spriteShape);
 
-            string logEntry = GenerateRandomItemLogEntry();
-
-            LanguageAPI.Add(itemDef.nameToken, itemName);
-            LanguageAPI.Add(itemDef.nameToken + "_PLURAL", itemNamePlural);
             LanguageAPI.Add(itemDef.pickupToken, effects.Description);
             LanguageAPI.Add(itemDef.descriptionToken, effects.Description);
-            LanguageAPI.Add(itemDef.loreToken, logEntry);
 
+            ItemDef inactiveDef = null;
             if (effects.HasInactiveForm)
             {
-                ItemDef inactiveDef = ScriptableObject.CreateInstance<ItemDef>();
-                inactiveDef.name = itemDef.name + "INACTIVE";
+                inactiveDef = ScriptableObject.CreateInstance<ItemDef>();
+                inactiveDef.name = itemDef.name + "_INACTIVE";
                 inactiveDef.AutoPopulateTokens();
                 inactiveDef.requiredExpansion = RgiExpansion;
                 inactiveDef.hidden = true;
-                inactiveDef.tier = tier;
+                inactiveDef.tier = itemDef.tier;
 #pragma warning disable CS0618
-                inactiveDef.deprecatedTier = tier;
+                inactiveDef.deprecatedTier = itemDef.deprecatedTier;
 #pragma warning restore CS0618
                 inactiveDef.pickupModelPrefab = itemDef.pickupModelPrefab;
                 inactiveDef.pickupIconSprite = GenerateInactiveIcon(itemDef.pickupIconSprite);
 
-                LanguageAPI.Add(inactiveDef.nameToken, itemName);
+                LanguageAPI.Add(inactiveDef.nameToken, Language.GetString(itemDef.nameToken));
+                LanguageAPI.Add(inactiveDef.loreToken, Language.GetString(itemDef.loreToken));
+
                 LanguageAPI.Add(inactiveDef.pickupToken, effects.Description + "\nThis item is currently inactive.");
                 LanguageAPI.Add(inactiveDef.descriptionToken, effects.Description + "\nThis item is currently inactive.");
-                LanguageAPI.Add(inactiveDef.loreToken, logEntry);
 
                 effects.InactiveItem = inactiveDef;
             }
 
             effects.Register();
 
-            Main.RgiLogger.LogDebug("Generated a " + tier + " item named " + itemName);
-            GeneratedItemDefs.Add(itemDef);
-            yield break;
+            Main.RgiLogger.LogDebug("Generated a " + itemDef.tier + " item named " + Language.GetString(itemDef.nameToken));
+            GeneratedItemDefs[itemDef] = effects;
         }
 
         private IEnumerator GenerateEquipments(LoadStaticContentAsyncArgs contentPackArgs)
         {
             for (int i = 0; i < EquipmentCount; i++)
             {
-                contentPackArgs.ReportProgress(0.7f + 0.2f * ((float)i / EquipmentCount));
-                yield return GenerateEquipment(false, false);
+                contentPackArgs.ReportProgress(0.7f + 0.1f * ((float)i / EquipmentCount));
+                GenerateEquipment(false, false);
+                yield return null;
             }
-            ContentPack.equipmentDefs.Add(GeneratedEquipmentDefs.ToArray());
+            for (int i = 0; i < LunarEquipmentCount; i++)
+            {
+                contentPackArgs.ReportProgress(0.8f + 0.1f * ((float)i / LunarEquipmentCount));
+                GenerateEquipment(true, false);
+                yield return null;
+            }
+            ContentPack.equipmentDefs.Add(GeneratedEquipmentDefs.Keys.ToArray());
         }
 
-        public IEnumerator GenerateEquipment(bool isLunar, bool isBoss)
+        private EquipmentDef CreateEquipmentDef(bool isLunar, bool isBoss)
         {
             EquipmentDef equipmentDef = ScriptableObject.CreateInstance<EquipmentDef>();
 
-            (string itemName, string itemNamePlural, string xmlSafeItemName) = GenerateRandomItemName();
-
-            if (string.IsNullOrEmpty(itemName) || string.IsNullOrEmpty(xmlSafeItemName)) throw new InvalidOperationException("Failed to generate a new equipment name!");
-
-
-            Color color = isLunar ? TierColors[ItemTier.Lunar] : EquipmentColor;
-
-            equipmentDef.name = "RGI_" + xmlSafeItemName;
+            if (isLunar)
+            {
+                if (isBoss)
+                {
+                    equipmentDef.name = "RGI_LUNAR_BOSS_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                }
+                else
+                {
+                    equipmentDef.name = "RGI_LUNAR_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+                }
+            }
+            else if (isBoss)
+            {
+                equipmentDef.name = "RGI_BOSS_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+            }
+            else
+            {
+                equipmentDef.name = "RGI_EQUIP_" + GeneratedNames.Count.ToString("00000000");
+            }
             equipmentDef.AutoPopulateTokens();
             equipmentDef.requiredExpansion = RgiExpansion;
             equipmentDef.isLunar = isLunar;
             equipmentDef.isBoss = isBoss;
             equipmentDef.canDrop = true;
 
+            LanguageAPI.Add(equipmentDef.nameToken, "Tabula Rasa");
+            LanguageAPI.Add(equipmentDef.nameToken + "_PLURAL", "Tabula Rasa");
+            LanguageAPI.Add(equipmentDef.loreToken, "This is an uninitialized Randomly Generated Item - if you can read this, something went wrong!");
+
+            return equipmentDef;
+        }
+
+        public void GenerateEquipment(bool isLunar, bool isBoss)
+        {
+            GenerateEquipmentEffects(CreateEquipmentDef(isLunar, isBoss));
+        }
+
+        public EquipmentEffects GenerateEquipmentEffects(EquipmentDef equipmentDef)
+        {
+            Color color = equipmentDef.isLunar ? TierColors[ItemTier.Lunar] : EquipmentColor;
+
             EquipmentEffects effects = new(equipmentDef, Main.Rng);
             SpriteShape spriteShape = effects.Generate();
 
-            equipmentDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), xmlSafeItemName, spriteShape);
-            equipmentDef.pickupIconSprite = GenerateRandomItemIcon(color, effects.SpriteColors ?? Array.Empty<Color>(), spriteShape);
+            equipmentDef.pickupModelPrefab = GenerateRandomItemPrefab(effects.SpriteColors ?? Array.Empty<Color>(), equipmentDef.name, spriteShape);
+            equipmentDef.pickupIconSprite = GenerateRandomItemIconAsync(effects.SpriteColors ?? Array.Empty<Color>(), color, spriteShape);
 
-            string logEntry = GenerateRandomItemLogEntry();
-
-            LanguageAPI.Add(equipmentDef.nameToken, itemName);
-            LanguageAPI.Add(equipmentDef.nameToken + "_PLURAL", itemNamePlural);
             LanguageAPI.Add(equipmentDef.pickupToken, effects.Description);
             LanguageAPI.Add(equipmentDef.descriptionToken, effects.Description);
-            LanguageAPI.Add(equipmentDef.loreToken, logEntry);
 
+            EquipmentDef inactiveDef = null;
             if (effects.HasInactiveForm)
             {
-                EquipmentDef inactiveDef = ScriptableObject.CreateInstance<EquipmentDef>();
+                inactiveDef = ScriptableObject.CreateInstance<EquipmentDef>();
                 inactiveDef.name = equipmentDef.name + "_INACTIVE";
                 inactiveDef.AutoPopulateTokens();
                 inactiveDef.requiredExpansion = RgiExpansion;
-                inactiveDef.isLunar = isLunar;
-                inactiveDef.isBoss = isBoss;
+                inactiveDef.isLunar = equipmentDef.isLunar;
+                inactiveDef.isBoss = equipmentDef.isBoss;
                 inactiveDef.canDrop = false;
                 inactiveDef.pickupModelPrefab = equipmentDef.pickupModelPrefab;
                 inactiveDef.pickupIconSprite = GenerateInactiveIcon(equipmentDef.pickupIconSprite);
 
-                LanguageAPI.Add(inactiveDef.nameToken, itemName);
+                LanguageAPI.Add(inactiveDef.nameToken, Language.GetString(equipmentDef.nameToken));
+                LanguageAPI.Add(inactiveDef.loreToken, Language.GetString(equipmentDef.loreToken));
+
                 LanguageAPI.Add(inactiveDef.pickupToken, effects.Description + "\nThis equipment is currently inactive.");
                 LanguageAPI.Add(inactiveDef.descriptionToken, effects.Description + "\nThis equipment is currently inactive.");
-                LanguageAPI.Add(inactiveDef.loreToken, logEntry);
 
                 effects.InactiveEquipment = inactiveDef;
             }
 
             effects.Register();
 
-            Main.RgiLogger.LogDebug("Generated a " + (isLunar ? "lunar " : "") + (isBoss ? "boss " : "") + "equipment named " + itemName);
-            GeneratedEquipmentDefs.Add(equipmentDef);
-            yield break;
+            Main.RgiLogger.LogDebug("Generated a " + (equipmentDef.isLunar ? "lunar " : "") + (equipmentDef.isBoss ? "boss " : "") + "equipment named " + Language.GetString(equipmentDef.nameToken));
+            GeneratedEquipmentDefs[equipmentDef] = effects;
+
+            return effects;
         }
 
-        private (string itemName, string itemNamePlural, string xmlSafeItemName) GenerateRandomItemName()
+        private (string itemName, string itemNamePlural) GenerateRandomItemName()
         {
             int attempts = 0;
             while (attempts < 25)
@@ -556,12 +624,11 @@ namespace RandomlyGeneratedItems
                 string prefix = NameSystem.ItemNamePrefix[prefixRng] + " ";
                 string name = prefix + NameSystem.ItemName[nameRng];
                 string namePlural = prefix + NameSystem.ItemNamePlural[nameRng];
-                string xmlSafeItemName = name.ToUpper().Replace(" ", "_").Replace("'", "").Replace("&", "AND");
-                if (GeneratedNames.Add(xmlSafeItemName)) return (name, namePlural, xmlSafeItemName);
+                if (GeneratedNames.Add(name)) return (name, namePlural);
                 attempts++;
             }
 
-            return (null, null, null);
+            return (null, null);
         }
 
         public static string GenerateRandomItemLogEntry()
@@ -635,56 +702,11 @@ namespace RandomlyGeneratedItems
             collider.gameObject.layer = LayerIndex.pickups.intVal;
             collider.isTrigger = true;
 
-            Material mat = new(HgStandard);
-            Texture2D tex = new(512, 512);
-            Color[] pixels = new Color[512 * 512];
-            Vector2[] offsets = randomShadeOffsets ?? new Vector2[coreColors.Length];
-            float[] samples = new float[coreColors.Length];
-
-            if (!randomShade)
+            Material mat = new(HgStandard)
             {
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    samples[i] = 1;
-                }
-            }
-
-            for (int y = 0; y < tex.height; y++)
-            {
-                for (int x = 0; x < tex.width; x++)
-                {
-                    int pixelIndex = y * tex.width + x;
-                    float sampleSum;
-                    if (randomShade)
-                    {
-                        sampleSum = 0;
-                        float noiseX = (float)x / tex.width * 4;
-                        float noiseY = (float)y / tex.height * 4;
-                        for (int i = 0; i < samples.Length; i++)
-                        {
-                            samples[i] = Mathf.PerlinNoise(offsets[i].x + noiseX, offsets[i].y + noiseY);
-                            sampleSum += samples[i];
-                        }
-                    }
-                    else
-                    {
-                        sampleSum = samples.Length;
-                    }
-
-                    pixels[pixelIndex] = Color.black;
-                    for (int i = 0; i < samples.Length; i++)
-                    {
-                        Color sampleColor = coreColors[i] * samples[i];
-                        if (sampleSum > 1) sampleColor /= sampleSum;
-                        pixels[pixelIndex] += sampleColor;
-                    }
-                }
-            }
-            tex.SetPixels(pixels);
-            tex.Apply();
-
-            mat.color = Color.white;
-            mat.mainTexture = tex;
+                color       = Color.white,
+                mainTexture = GenerateNoiseTex(coreColors, default, null, null, true, null)
+            };
 
             foreach (MeshRenderer mr in model.GetComponentsInChildren<MeshRenderer>())
             {
@@ -694,14 +716,15 @@ namespace RandomlyGeneratedItems
             return prefab.InstantiateClone($"{xmlSafeItemName}-model", false);
         }
 
-        public static Sprite GenerateRandomItemIcon(Color borderColor, Color[] coreColors, SpriteShape shape, ulong? seed = null)
+        public static Sprite GenerateRandomItemIconAsync(Color[] coreColors, Color borderColor, SpriteShape shape, ulong? seed = null)
         {
             Xoroshiro128Plus rng = seed.HasValue ? new Xoroshiro128Plus(seed.Value) : new Xoroshiro128Plus(Main.Rng);
 
             Vector2[] randomShadeOffsets = new Vector2[coreColors.Length];
             for (int i = 0; i < randomShadeOffsets.Length; i++)
                 randomShadeOffsets[i] = new Vector2(rng.RangeFloat(-10000, 10000), rng.RangeFloat(-10000, 10000));
-            Sprite icon = GenerateIcon(borderColor, coreColors, shape, true, randomShadeOffsets);
+
+            Sprite icon = GenerateIcon(coreColors, borderColor, shape, true, randomShadeOffsets);
 
             UnityEngine.Object.DontDestroyOnLoad(icon.texture);
             UnityEngine.Object.DontDestroyOnLoad(icon);
@@ -709,59 +732,86 @@ namespace RandomlyGeneratedItems
             return icon;
         }
 
-        public static Sprite GenerateIcon(Color borderColor, Color[] coreColors, SpriteShape shape,
+        public static Sprite GenerateIcon(Color[] coreColors, Color borderColor, SpriteShape shape,
             bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
-            return GenerateIcon(borderColor, coreColors, ShapeDelegates[shape].Item1, ShapeDelegates[shape].Item2,
+            Texture2D noiseTex = GenerateNoiseTex(coreColors, borderColor, ShapeDelegates[shape].Item1, ShapeDelegates[shape].Item2,
                 randomShade, randomShadeOffsets);
+
+            return Sprite.Create(noiseTex, new Rect(0, 0, noiseTex.width, noiseTex.height), new Vector2(0.5f, 0.5f));
         }
 
-        public static Sprite GenerateIcon(Color borderColor, Color[] coreColors, Func<int, int, bool> shapeDelegate, Func<int, int, bool> borderDelegate, bool randomShade = true, Vector2[] randomShadeOffsets = null)
+        public static Texture2D GenerateNoiseTex(Color[] coreColors, Color borderColor = default, Func<int, int, bool> shapeDelegate = null, Func<int, int, bool> borderDelegate = null,
+            bool randomShade = true, Vector2[] randomShadeOffsets = null)
         {
-            Texture2D tex = new(512, 512);
+            shapeDelegate ??= (x, y) => true;
+            borderDelegate ??= (x, y) => false;
 
-            Color[] pixels = new Color[512 * 512];
+            Texture2D tex = new(RandomSpriteResolution, RandomSpriteResolution);
+
+            StartAsyncTaskWithSyncFinalizer(() => GenerateNoiseTexPixels(coreColors, borderColor, shapeDelegate, borderDelegate, randomShade, randomShadeOffsets),
+                pixels =>
+            {
+                tex.SetPixels(GenerateNoiseTexPixels(coreColors, borderColor, shapeDelegate, borderDelegate, randomShade, randomShadeOffsets));
+                tex.Apply();
+            });
+            
+            return tex;
+        }
+
+        public static Color[] GenerateNoiseTexPixels(Color[] coreColors, Color borderColor = default, Func<int, int, bool> shapeDelegate = null, Func<int, int, bool> borderDelegate = null,
+            bool randomShade = true, Vector2[] randomShadeOffsets = null)
+        {
+            Color[] pixels = new Color[RandomSpriteResolution * RandomSpriteResolution];
             Vector2[] offsets = randomShadeOffsets ?? new Vector2[coreColors.Length];
-            float[] samples = new float[coreColors.Length];
+            float[] noiseSamples = new float[coreColors.Length];
+            Color[,] noiseColors = new Color[RandomSpriteNoiseResolution, RandomSpriteNoiseResolution];
+            Color baseColor = Color.black;
 
             if (!randomShade)
             {
-                for (int i = 0; i < samples.Length; i++)
+                for (int i = 0; i < coreColors.Length; i++)
                 {
-                    samples[i] = 1;
+                    baseColor += coreColors[i] / coreColors.Length;
                 }
             }
 
-            for (int y = 0; y < tex.height; y++)
+            for (int y = 0; y < RandomSpriteResolution; y++)
             {
-                for (int x = 0; x < tex.width; x++)
+                for (int x = 0; x < RandomSpriteResolution; x++)
                 {
-                    int pixelIndex = y * tex.width + x;
-                    float sampleSum;
-                    if (randomShade)
-                    {
-                        sampleSum = 0;
-                        float noiseX = (float)x / tex.width * 4;
-                        float noiseY = (float)y / tex.height * 4;
-                        for (int i = 0; i < samples.Length; i++)
-                        {
-                            samples[i] = Mathf.PerlinNoise(offsets[i].x + noiseX, offsets[i].y + noiseY);
-                            sampleSum += samples[i];
-                        }
-                    }
-                    else
-                    {
-                        sampleSum = samples.Length;
-                    }
+                    int pixelIndex = y * RandomSpriteResolution + x;
 
                     if (shapeDelegate(x, y))
                     {
-                        pixels[pixelIndex] = Color.black;
-                        for (int i = 0; i < samples.Length; i++)
+                        if (randomShade)
                         {
-                            Color sampleColor = coreColors[i] * samples[i];
-                            if (sampleSum > 1) sampleColor /= sampleSum;
-                            pixels[pixelIndex] += sampleColor;
+                            int noiseX = x / RandomSpriteNoiseGranularity;
+                            int noiseY = y / RandomSpriteNoiseGranularity;
+
+                            if (noiseColors[noiseX, noiseY].a == 0)
+                            {
+                                float sampleSum = 0;
+                                for (int i = 0; i < noiseSamples.Length; i++)
+                                {
+                                    noiseSamples[i] = (Noise.GetNoise(offsets[i].x + noiseX, offsets[i].y + noiseY) + 1) / 2;
+                                    sampleSum += noiseSamples[i];
+                                }
+                                if (sampleSum < 1) sampleSum = 1;
+
+                                Color noiseColor = baseColor;
+                                for (int i = 0; i < coreColors.Length; i++)
+                                {
+                                    noiseColor += coreColors[i] * noiseSamples[i] / sampleSum;
+                                }
+                                noiseColors[noiseX, noiseY] = noiseColor;
+                            }
+
+                            pixels[pixelIndex] = noiseColors[noiseX, noiseY];
+                        }
+                        else
+                        {
+                            pixels[pixelIndex] = baseColor;
                         }
                     }
                     else if (borderDelegate(x, y))
@@ -774,47 +824,105 @@ namespace RandomlyGeneratedItems
                     }
                 }
             }
-            tex.SetPixels(pixels);
-            tex.Apply();
 
-            return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            return pixels;
         }
 
         public static Sprite GenerateInactiveIcon(Sprite activeIcon)
         {
             Texture2D tex = new(activeIcon.texture.width, activeIcon.texture.height);
-            tex.SetAllPixels32(activeIcon.texture.GetPixels32(0).Select(c =>
-            {
-                float cVal = c.r / 255f * 0.2126f + c.g / 255f * 0.7152f + c.b / 255f * 0.0722f;
-                cVal = cVal <= 0.0031308 ? cVal * 12.92f : Mathf.Pow(cVal, 1 / 2.4f) * 1.055f - 0.055f;
-                byte cByte = (byte) Mathf.RoundToInt(cVal * 255);
-                return new Color32(cByte, cByte, cByte, c.a);
-            }).ToArray(), 0);
+            
+            StartAsyncTaskWithSyncFinalizer(async () =>
+                {
+                    while (activeIcon.texture.updateCount == 0)
+                        await Task.Delay(1);
+                    return activeIcon.texture;
+                }, texture =>
+                {
+                    tex.SetAllPixels32(texture.GetPixels32(0).Select(c =>
+                    {
+                        float cVal = c.r / 255f * 0.2126f + c.g / 255f * 0.7152f + c.b / 255f * 0.0722f;
+                        cVal = cVal <= 0.0031308 ? cVal * 12.92f : Mathf.Pow(cVal, 1 / 2.4f) * 1.055f - 0.055f;
+                        byte cByte = (byte)Mathf.RoundToInt(cVal * 255);
+                        return new Color32(cByte, cByte, cByte, c.a);
+                    }).ToArray(), 0);
+                });
+
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+        }
+
+        private static void StartAsyncTaskWithSyncFinalizer<T>(Func<T> AsyncRunDelegate, Action<T> SyncFinalizerAction)
+        {
+            Task<T> task = Task.Run(AsyncRunDelegate);
+            AsyncTaskFinalizers.Enqueue(() => SyncFinalizerAction(task.Result));
+        }
+
+        private static void StartAsyncTaskWithSyncFinalizer<T>(Func<Task<T>> AsyncRunDelegate, Action<T> SyncFinalizerAction)
+        {
+            Task<T> task = Task.Run(AsyncRunDelegate);
+            AsyncTaskFinalizers.Enqueue(() => SyncFinalizerAction(task.Result));
+        }
+
+        private PickupIndex FrivolizePickupIndex(PickupIndex pickupIndex)
+        {
+            PickupIndex? frivolizedPickup = FrivolizePickup(PickupCatalog.GetPickupDef(pickupIndex));
+            return frivolizedPickup ?? pickupIndex;
+        }
+
+        private PickupDef FrivolizePickupDef(PickupDef pickupDef)
+        {
+            PickupIndex? frivolizedPickup = FrivolizePickup(pickupDef);
+            return frivolizedPickup.HasValue ? PickupCatalog.GetPickupDef(frivolizedPickup.Value) : pickupDef;
+        }
+
+        private PickupIndex? FrivolizePickup(PickupDef pickupDef)
+        {
+            if (pickupDef == null) return null;
+            if (pickupDef.itemIndex != ItemIndex.None)
+            {
+                ItemDef item = ItemCatalog.GetItemDef(pickupDef.itemIndex);
+                if (item == null || item.requiredExpansion == RgiExpansion) return null;
+                ItemDef randomizedItem = RandomizeItemPickup(item.tier);
+                if (randomizedItem != null)
+                {
+                    return PickupCatalog.FindPickupIndex(randomizedItem.itemIndex);
+                }
+            }
+            else if (pickupDef.equipmentIndex != EquipmentIndex.None)
+            {
+                EquipmentDef equipment = EquipmentCatalog.GetEquipmentDef(pickupDef.equipmentIndex);
+                if (equipment == null || equipment.requiredExpansion == RgiExpansion) return null;
+                EquipmentDef randomizedEquipment = RandomizeEquipmentPickup(equipment.isLunar, equipment.isBoss);
+                if (randomizedEquipment != null)
+                {
+                    return PickupCatalog.FindPickupIndex(randomizedEquipment.equipmentIndex);
+                }
+            }
+            return null;
         }
 
         private ItemDef RandomizeItemPickup(ItemTier tier)
         {
             if (!ItemTypeCounts.TryGetValue(tier, out int tierCount) || tierCount <= 0) return null;
             int itemIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, tierCount);
-            return GeneratedItemDefs.FirstOrDefault(itemDef => itemDef.tier == tier && itemIndex-- == 0);
+            return GeneratedItemDefs.Keys.FirstOrDefault(itemDef => itemDef.tier == tier && itemIndex-- == 0);
         }
 
         private EquipmentDef RandomizeEquipmentPickup(bool isLunar, bool isBoss)
         {
             if (EquipmentCount == 0) return null;
             int equipmentIndex;
-            int matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss);
+            int matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss);
             if (matchingEquipmentCount > 0)
             {
                 equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
-                return GeneratedEquipmentDefs.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss && equipmentIndex-- == 0);
+                return GeneratedEquipmentDefs.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentDef.isBoss == isBoss && equipmentIndex-- == 0);
             }
-            matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => equipmentDef.isLunar == isLunar);
-            if (isLunar && matchingEquipmentCount <= 0) matchingEquipmentCount = GeneratedEquipmentDefs.Count(equipmentDef => !equipmentDef.isLunar);
+            matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => equipmentDef.isLunar == isLunar);
+            if (isLunar && matchingEquipmentCount <= 0) matchingEquipmentCount = GeneratedEquipmentDefs.Keys.Count(equipmentDef => !equipmentDef.isLunar);
             if (matchingEquipmentCount <= 0) return null;
             equipmentIndex = new Xoroshiro128Plus(Main.Rng).RangeInt(0, matchingEquipmentCount);
-            return GeneratedEquipmentDefs.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentIndex-- == 0);
+            return GeneratedEquipmentDefs.Keys.FirstOrDefault(equipmentDef => equipmentDef.isLunar == isLunar && equipmentIndex-- == 0);
         }
     }
 }

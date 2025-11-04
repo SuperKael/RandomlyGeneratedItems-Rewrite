@@ -14,18 +14,31 @@ namespace RandomlyGeneratedItems.RandomEffects
         public static readonly Dictionary<string, AbstractEffects> RegisteredEffects = new();
         public static readonly Dictionary<string, AbstractEffects> RegisteredInactiveEffects = new();
         public static readonly Dictionary<string, List<string>> TriggerTypeMap = new();
+        public static readonly Dictionary<string, List<string>> LunarTriggerTypeMap = new();
 
         public static event Func<CharacterBody, string, float, float> OnPassiveSpecialStatUpdated;
 
+        public Xoroshiro128Plus Rng;
+
+        public string Description { get => DescriptionOverrride ?? (BuiltDescription ??= BuildDescription()); }
+        private string BuiltDescription;
+        private string DescriptionOverrride;
+
         public int Grade;
         public string TriggerType;
-        public string Description;
+
         public float PassiveStrength;
         public float PassiveStackScaling;
+
         public float TriggeredStrength;
         public float TriggeredStackScaling;
+
+        public float LunarStrength;
+        public float LunarStackScaling;
+
         public float Chance;
         public float ChanceStackScaling;
+
         public bool HasInactiveForm;
         public string ReactivationTrigger;
         public ProcType? ProcType;
@@ -43,7 +56,18 @@ namespace RandomlyGeneratedItems.RandomEffects
         public event TriggeredEffect.TriggeredEffectCallback OnTriggeredEffect;
         public List<EffectCondition.ConditionCallback> ReactivationConditions = new();
 
-        public Xoroshiro128Plus Rng;
+        protected HashSet<string> ConditionNames = new();
+        protected HashSet<string> PassiveEffectNames = new();
+        protected HashSet<string> TriggeredEffectNames = new();
+
+        protected abstract string PickupLanguageToken { get; }
+        protected abstract string DescriptionLanguageToken { get; }
+
+        private LanguageAPI.LanguageOverlay nameLanguageOverlay;
+        private LanguageAPI.LanguageOverlay namePluralLanguageOverlay;
+        private LanguageAPI.LanguageOverlay pickupLanguageOverlay;
+        private LanguageAPI.LanguageOverlay descriptionLanguageOverlay;
+        private LanguageAPI.LanguageOverlay loreLanguageOverlay;
 
         public static IEnumerator Initialize(ContentPack contentPack)
         {
@@ -278,22 +302,109 @@ namespace RandomlyGeneratedItems.RandomEffects
             return TriggeredStrength * (1 + TriggeredStackScaling * (stackCount - 1)) * procCoefficient * 0.01f;
         }
 
+        public float GetLunarStrength(int stackCount, float procCoefficient = 1)
+        {
+            return LunarStrength * (1 + LunarStackScaling * (stackCount - 1)) * procCoefficient * 0.01f;
+        }
+
         public string FormatChancePercentage()
         {
-            return $"<style=cIsDamage>{Chance:0.##}%</style>" + (ChanceStackScaling > 0 ? $" <style=cStack>(+{Chance * ChanceStackScaling:0.##}% per stack)</style>" : "");
+            return $"<style=cIsDamage>{Chance:#0}%</style>" + (ChanceStackScaling > 0 ? $" <style=cStack>(+{Chance * ChanceStackScaling:#0}% per stack)</style>" : "");
         }
 
         public string FormatPassiveStrengthPercentage(string textStyle)
         {
-            return $"<style=c{textStyle}>{PassiveStrength:0.##}%</style>" + (PassiveStackScaling > 0 ? $" <style=cStack>(+{PassiveStrength * PassiveStackScaling:0.##}% per stack)</style>" : "");
+            return $"<style=c{textStyle}>{PassiveStrength:#0}%</style>" + (PassiveStackScaling > 0 ? $" <style=cStack>(+{PassiveStrength * PassiveStackScaling:#0}% per stack)</style>" : "");
         }
 
         public string FormatTriggeredStrengthPercentage(string textStyle)
         {
-            return $"<style=c{textStyle}>{TriggeredStrength:0.##}%</style>" + (TriggeredStackScaling > 0 ? $" <style=cStack>(+{TriggeredStrength * TriggeredStackScaling:0.##}% per stack)</style>" : "");
+            return $"<style=c{textStyle}>{TriggeredStrength:#0}%</style>" + (TriggeredStackScaling > 0 ? $" <style=cStack>(+{TriggeredStrength * TriggeredStackScaling:#0}% per stack)</style>" : "");
+        }
+
+        public string FormatLunarStrengthPercentage(string textStyle)
+        {
+            return $"<style=c{textStyle}>{LunarStrength:#0}%</style>" + (LunarStackScaling > 0 ? $" <style=cStack>(+{LunarStrength * LunarStackScaling:#0}% per stack)</style>" : "");
+        }
+
+        public void InvalidateDescription()
+        {
+            BuiltDescription = null;
+        }
+
+        public void RegenerateDescription()
+        {
+            InvalidateDescription();
+
+            if (pickupLanguageOverlay != null)
+                pickupLanguageOverlay.Remove();
+            if (descriptionLanguageOverlay != null)
+                descriptionLanguageOverlay.Remove();
+
+            pickupLanguageOverlay = LanguageAPI.AddOverlay(PickupLanguageToken, Description);
+            descriptionLanguageOverlay = LanguageAPI.AddOverlay(DescriptionLanguageToken, Description);
+        }
+
+        public void OverrideDescription(string description)
+        {
+            DescriptionOverrride = description;
         }
 
         public abstract SpriteShape Generate();
+
+        protected void SetTrigger(EffectTriggerType trigger)
+        {
+            TriggerType = trigger.Name;
+            InvalidateDescription();
+        }
+
+        protected bool AddCondition(EffectCondition condition)
+        {
+            if (!ConditionNames.Add(condition.Name))
+                return false;
+
+            Conditions.Add(condition.GetConditionCallback(this));
+            InvalidateDescription();
+            return true;
+        }
+
+        protected bool AddPassiveEffect(PassiveEffect effect)
+        {
+            if (!PassiveEffectNames.Add(effect.Name))
+                return false;
+
+            OnPassiveEffect      += effect.GetPassiveEffectCallback(this);
+            OnPassiveSpecialStat += effect.GetPassiveSpecialStatCallback(this);
+            InvalidateDescription();
+            return true;
+        }
+
+        protected bool AddTriggeredEffect(TriggeredEffect effect)
+        {
+            if (!TriggeredEffectNames.Add(effect.Name))
+                return false;
+
+            OnTriggeredEffect += effect.GetTriggeredEffectCallback(this);
+            InvalidateDescription();
+            return true;
+        }
+
+        public bool HasCondition(string name)
+        {
+            return ConditionNames.Contains(name);
+        }
+
+        public bool HasPassiveEffect(string name)
+        {
+            return PassiveEffectNames.Contains(name);
+        }
+
+        public bool HasTriggeredEffect(string name)
+        {
+            return TriggeredEffectNames.Contains(name);
+        }
+
+        protected abstract string BuildDescription();
 
         public delegate string DescriptionDelegate(AbstractEffects effects);
     }
