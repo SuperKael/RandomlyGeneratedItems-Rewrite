@@ -896,7 +896,8 @@ namespace RandomlyGeneratedItems
             if (pickupDef.itemIndex != ItemIndex.None)
             {
                 ItemDef item = ItemCatalog.GetItemDef(pickupDef.itemIndex);
-                if (item == null || item.requiredExpansion == RgiExpansion) return null;
+                if (item == null || item.requiredExpansion == RgiExpansion || !item.canRemove || item.hidden
+                    || (item.ContainsTag(ItemTag.WorldUnique) && item.DoesNotContainTag(ItemTag.Damage) && item.DoesNotContainTag(ItemTag.Healing) && item.DoesNotContainTag(ItemTag.Utility))) return null;
                 ItemDef randomizedItem = RandomizeItemPickup(item.tier);
                 if (randomizedItem != null)
                 {

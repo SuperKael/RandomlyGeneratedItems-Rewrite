@@ -16,7 +16,7 @@ namespace RandomlyGeneratedItems
 
         public const string PluginAuthor = "SuperKael"; // Original author is HIFUPulse!
         public const string PluginName = "RandomlyGeneratedItems";
-        public const string PluginVersion = "2.1.1";
+        public const string PluginVersion = "2.1.2";
 
         public static ConfigFile RgiConfig;
         public static ManualLogSource RgiLogger;
