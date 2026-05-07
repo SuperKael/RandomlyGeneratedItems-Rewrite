@@ -109,8 +109,8 @@ namespace RandomlyGeneratedItems
         {
             "Insomnias", "Letters", "Experiments", "Jetpacks", "Lights", "Materials", "Buttersnips", "Feelings", "Zyglroxes", "Racecars", "Passengers", "Grooves",
             "Captains", "Eurekas", "Muramasas", "Blasts", "Facepalms", "Mutes", "Jis", "Luck", "Ragnaroks", "Diamonds", "Bullfish", "Masamunes", "Overtures", "Grounds",
-            "Zeros", "Parades", "Auras", "Minutes", "Ultras", "Hearts", "Scourges", "Alphas", "Gravities", "Hells", "Omegas", "Prices", "Motormouths", "Marigolds", "Priestesses",
-            "Flatlines", "Fires", "Prayers", "Lunes", "Reptiles", "Eagles", "Burners", "Ghosts", "Glows", "Covenants", "Havens", "Ghilans", "Millenniums", "Divisions", "Meridians",
+            "Zeroes", "Parades", "Auras", "Minutes", "Ultras", "Hearts", "Scourges", "Alphas", "Gravities", "Hells", "Omegas", "Prices", "Motormouths", "Marigolds", "Priestesses",
+            "Flatlines", "Fires", "Prayers", "Lunes", "Reptiles", "Eagles", "Burners", "Ghosts", "Glows", "Covenants", "Havens", "Ghilans", "Millennia", "Divisions", "Meridians",
             "Prototypes", "Voids", "Ruins", "Fears", "Waters", "Avatars", "Decays", "Spines", "Skies", "Movements", "Echoes", "Deadroses", "Rains", "Longings", "Groves",
             "Oils", "Scorpios", "Oceans", "Portraits", "Golds", "Fates", "Proxies", "Retrospects", "Nocturnes", "Eclipses", "Singularities", "Embers", "Dystopias", "Hexes",
             "Utopias", "Messengers", "Cages", "Kings", "Orbitals", "Mirror Images", "Arrows", "Matters", "Energies", "Bloods", "Bloods", "Extinctions", "Impermanences",
@@ -147,7 +147,7 @@ namespace RandomlyGeneratedItems
             "Infernos", "Keys", "Dragons", "Wavers", "Wraths", "Naginatas", "Glaives", "Swordfish", "Poles", "Discs", "Hatchets", "Anchors", "Fists", "Pows", "Armors",
             "Stones", "Skulls", "Emblems", "Gloves", "Shells", "Blasters", "Cocktails", "Grenades", "Harpoons", "Launchers", "Atmospheres", "Zappers", "Staffs", "Scythes",
             "Bolts", "Rods", "Fractures", "Serpents", "Bursts", "Rays", "Blowers", "Typhoons", "Syzygies", "Armageddons", "Flares", "Heads", "Flasks", "Harps", "Thorns",
-            "Tunes", "Arcanums", "Blazes",
+            "Tunes", "Arcana", "Blazes",
 
             "Loads" // for the funny
         };
